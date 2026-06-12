@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { menuItems } from "@/data/content";
 import { useUserStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { X } from "lucide-react";
+import { X, LogOut } from "lucide-react";
 
 export function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const user = useUserStore();
 
   return (
@@ -44,22 +45,50 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
       </Link>
 
       {/* User mini card */}
-      <div className="mx-4 mb-3 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 p-4 text-white">
-        <p className="text-sm font-semibold opacity-90">Halo,</p>
-        <p className="text-lg font-extrabold">{user.name} 👋</p>
-        <div className="mt-2 flex items-center gap-3 text-xs font-bold">
-          <span>⭐ {user.xp} XP</span>
-          <span>🔥 {user.streak} hari</span>
-          {user.level && (
-            <span className="rounded-full bg-white/25 px-2 py-0.5">
-              {user.level === "beginner" ? "🟢 Beginner" : "🔵 Intermediate"}
-            </span>
-          )}
+      {user.role === "teacher" && (
+        <div className="mx-4 mb-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 p-4 text-white">
+          <p className="text-sm font-semibold opacity-90">SALL</p>
+          <p className="text-lg font-extrabold">Teacher Portal 👩‍🏫</p>
         </div>
-      </div>
+      )}
+
+      {user.role === "student" && (
+        <div className="mx-4 mb-3 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 p-4 text-white">
+          <p className="text-sm font-semibold opacity-90">Halo,</p>
+          <p className="text-lg font-extrabold">{user.name} 👋</p>
+          <div className="mt-2 flex items-center gap-3 text-xs font-bold">
+            <span>⭐ {user.xp} XP</span>
+            <span>🔥 {user.streak} hari</span>
+            {user.level && (
+              <span className="rounded-full bg-white/25 px-2 py-0.5">
+                {user.level === "beginner" ? "🟢 Beginner" : "🔵 Intermediate"}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Menu */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-6">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-6 flex flex-col">
+        {user.role === "teacher" ? (
+          <Link
+            href="/teacher"
+            onClick={onClose}
+            className={cn(
+              "mb-2 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-bold transition-all duration-200",
+              pathname === "/teacher"
+                ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                : "text-slate-600 hover:bg-blue-50"
+            )}
+          >
+            <span className="text-lg">👩‍🏫</span>
+            <span className="leading-tight">Teacher Dashboard</span>
+          </Link>
+        ) : null}
+
+        <div className={user.role === "teacher" ? "mt-4 mb-2 px-4 text-xs font-bold text-slate-400" : "hidden"}>
+          {user.role === "teacher" ? "STUDENT PREVIEW" : ""}
+        </div>
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -80,19 +109,19 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
           );
         })}
 
-        <Link
-          href="/teacher"
-          onClick={onClose}
-          className={cn(
-            "mt-3 flex w-full items-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 px-4 py-3 text-left text-sm font-bold transition-all duration-200",
-            pathname === "/teacher"
-              ? "border-blue-400 bg-blue-50 text-blue-700"
-              : "text-slate-500 hover:bg-slate-50"
-          )}
-        >
-          <span className="text-lg">👩‍🏫</span>
-          <span>Teacher Portal (CMS)</span>
-        </Link>
+        <div className="mt-auto pt-6">
+          <button
+            onClick={() => {
+              user.logout();
+              router.push("/login");
+              onClose?.();
+            }}
+            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-bold text-red-600 transition-all duration-200 hover:bg-red-50"
+          >
+            <LogOut size={18} />
+            <span>Keluar (Logout)</span>
+          </button>
+        </div>
       </nav>
     </aside>
   );

@@ -94,8 +94,22 @@ export interface AttemptRecord {
   correct: boolean;
 }
 
+export interface UserStore extends UserState {
+  setName: (n: string) => void;
+  login: (role: "student" | "teacher", name: string) => void;
+  logout: () => void;
+  completePlacement: (level: Level, xp: number) => void;
+  addXp: (amount: number) => void;
+  recordAttempt: (a: AttemptRecord) => void;
+  masterVocab: (count: number) => void;
+  completeModule: (id: string) => void;
+  awardBadge: (id: string) => void;
+  resetAll: () => void;
+}
+
 export interface UserState {
   name: string;
+  role: "student" | "teacher" | null;
   level: Level | null;
   placementDone: boolean;
   xp: number;

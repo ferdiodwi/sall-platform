@@ -12,6 +12,8 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 // ============================================================
 interface UserStore extends UserState {
   setName: (n: string) => void;
+  login: (role: "student" | "teacher", name: string) => void;
+  logout: () => void;
   completePlacement: (level: Level, xp: number) => void;
   addXp: (amount: number) => void;
   recordAttempt: (a: AttemptRecord) => void;
@@ -34,7 +36,8 @@ function checkBadges(state: UserState): string[] {
 }
 
 const defaultUser: UserState = {
-  name: "Faziru",
+  name: "",
+  role: null,
   level: null,
   placementDone: false,
   xp: 0,
@@ -51,6 +54,8 @@ export const useUserStore = create<UserStore>()(
     (set) => ({
       ...defaultUser,
       setName: (n) => set({ name: n }),
+      login: (role, name) => set({ role, name }),
+      logout: () => set(defaultUser),
       completePlacement: (level, xp) =>
         set((s) => {
           const next = { ...s, level, placementDone: true, xp: s.xp + xp };
