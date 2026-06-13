@@ -51,7 +51,7 @@ export default function LoginPage() {
       return
     }
 
-    // Ambil role untuk redirect
+    // Ambil role untuk redirect + simpan di cookie untuk mempercepat middleware
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: profile } = await supabase
@@ -61,6 +61,8 @@ export default function LoginPage() {
         .single<{ role: string }>()
 
       const role = profile?.role ?? 'student'
+      // Simpan role di cookie agar middleware tidak perlu query DB setiap navigasi
+      document.cookie = `user-role=${role}; path=/; samesite=lax`
       router.push(role === 'teacher' ? '/teacher/dashboard' : '/home')
       router.refresh()
     }
