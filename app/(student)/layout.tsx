@@ -7,29 +7,18 @@ import { TopBar } from '@/components/layout/TopBar'
 export default async function StudentLayout({ children }: { children: ReactNode }) {
   const supabase = await createServerClient()
 
-  // Ambil user dari auth
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
+  // Gunakan getSession (baca cookie) — TIDAK ada network call ke Supabase
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) {
     redirect('/login')
   }
 
-  // Fetch profil & student details secara server-side
-  const { data: userProfile } = await supabase
-    .from('users')
-    .select('name, email, class_id, role')
-    .eq('id', user.id)
-    .single() as any
-
-  // Pastikan user adalah student, jika teacher redirect ke teacher dashboard
-  if (userProfile?.role === 'teacher') {
-    redirect('/teacher/dashboard')
-  }
-
-  const { data: studentProfile } = await supabase
-    .from('students')
-    .select('xp, streak, level')
-    .eq('id', user.id)
-    .single() as any
+  // Middleware sudah menjamin role = student, tidak perlu cek role lagi
+  // Jalankan 2 query secara PARALEL
+  const [{ data: userProfile }, { data: studentProfile }] = await Promise.all([
+    supabase.from('users').select('name, email, class_id').eq('id', session.user.id).single() as any,
+    supabase.from('students').select('xp, streak, level').eq('id', session.user.id).single() as any,
+  ])
 
   const studentData = userProfile && studentProfile ? {
     name: userProfile.name,

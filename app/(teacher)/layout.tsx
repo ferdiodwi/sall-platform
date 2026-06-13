@@ -7,23 +7,19 @@ import { TeacherTopBar } from '@/components/layout/TeacherTopBar'
 export default async function TeacherLayout({ children }: { children: ReactNode }) {
   const supabase = await createServerClient()
 
-  // Ambil user dari auth
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
+  // Gunakan getSession (baca cookie) — TIDAK ada network call ke Supabase
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) {
     redirect('/login')
   }
 
-  // Fetch profil secara server-side
+  // Middleware sudah menjamin role = teacher, jadi tidak perlu cek role lagi
+  // Fetch profil saja untuk kebutuhan UI (nama & email di sidebar/topbar)
   const { data: userProfile } = await supabase
     .from('users')
-    .select('name, email, role')
-    .eq('id', user.id)
+    .select('name, email')
+    .eq('id', session.user.id)
     .single() as any
-
-  // Pastikan user adalah teacher, jika student redirect ke /home
-  if (userProfile?.role !== 'teacher') {
-    redirect('/home')
-  }
 
   const teacherData = userProfile ? {
     name: userProfile.name,
