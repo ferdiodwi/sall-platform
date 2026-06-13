@@ -61,18 +61,29 @@ export default function TeacherDashboard() {
     try {
       setLoading(true)
 
-      // 1. Fetch Students
-      const { data: studentsData, error: sErr } = await supabase
-        .from('students')
-        .select(`
-          id,
-          xp,
-          last_active,
-          level,
-          modules_completed
-        `) as any
+      // Jalankan SEMUA query secara paralel dengan Promise.all()
+      const [
+        { data: studentsData, error: sErr },
+        { data: modulesData, error: mErr },
+        { data: feedbacks, error: fErr },
+        { data: quizzes, error: qErr },
+        { data: questions, error: questErr },
+        { data: analyticsData, error: aErr },
+      ] = await Promise.all([
+        supabase.from('students').select('id, xp, last_active, level, modules_completed') as any,
+        supabase.from('modules').select('id, number, title') as any,
+        supabase.from('feedback').select('correct, question_id') as any,
+        supabase.from('quizzes').select('id, module_id') as any,
+        supabase.from('questions').select('id, quiz_id') as any,
+        supabase.from('analytics').select('*').order('recorded_at', { ascending: false }).limit(1) as any,
+      ])
 
       if (sErr) throw sErr
+      if (mErr) throw mErr
+      if (fErr) throw fErr
+      if (qErr) throw qErr
+      if (questErr) throw questErr
+      if (aErr) throw aErr
 
       const students = (studentsData || []) as any[]
       setTotalStudents(students.length)
@@ -97,21 +108,10 @@ export default function TeacherDashboard() {
         ...(unassignedCount > 0 ? [{ name: 'Belum Kuis', value: unassignedCount }] : [])
       ])
 
-      // 2. Fetch Modules
-      const { data: modulesData, error: mErr } = await supabase
-        .from('modules')
-        .select('id, number, title') as any
-
-      if (mErr) throw mErr
       const modules = (modulesData || []) as any[]
-
-      // 3. Fetch Feedback untuk hitung rata-rata kuis
-      const { data: feedbacks, error: fErr } = await supabase
-        .from('feedback')
-        .select('correct, question_id') as any
-
-      if (fErr) throw fErr
       const feedbackLogs = (feedbacks || []) as any[]
+      const quizList = (quizzes || []) as any[]
+      const questionList = (questions || []) as any[]
       
       // Rata-rata skor kelas
       if (feedbackLogs.length > 0) {
@@ -122,8 +122,7 @@ export default function TeacherDashboard() {
         setAverageScore(0)
       }
 
-      // 4. Hitung statistik per modul
-      // Kita hitung penyelesaian per modul dari arrays `modules_completed` milik siswa
+      // Hitung statistik per modul
       const completedCounts: { [key: string]: number } = {}
       students.forEach(s => {
         const completed = s.modules_completed || []
@@ -132,32 +131,14 @@ export default function TeacherDashboard() {
         })
       })
 
-      // Cari modul paling populer
       let maxCompleted = 0
       let maxModTitle = '-'
-      
-      // Ambil kuis per modul untuk menghitung rata-rata skor per modul
-      const { data: quizzes, error: qErr } = await supabase
-        .from('quizzes')
-        .select('id, module_id') as any
-
-      if (qErr) throw qErr
-      const quizList = (quizzes || []) as any[]
-
-      const { data: questions, error: questErr } = await supabase
-        .from('questions')
-        .select('id, quiz_id') as any
-
-      if (questErr) throw questErr
-      const questionList = (questions || []) as any[]
 
       const stats = modules.map(m => {
-        // Cari kuis yang termasuk ke modul ini
         const moduleQuizzes = quizList.filter(q => q.module_id === m.id)
         const moduleQuizIds = moduleQuizzes.map(q => q.id)
         const moduleQuestionIds = questionList.filter(q => moduleQuizIds.includes(q.quiz_id)).map(q => q.id)
 
-        // Hitung rata-rata skor modul
         const moduleFeedbacks = feedbackLogs.filter(f => moduleQuestionIds.includes(f.question_id))
         let modAvg = 0
         if (moduleFeedbacks.length > 0) {
@@ -186,21 +167,11 @@ export default function TeacherDashboard() {
       setModuleStats(stats)
       setMostCompletedModule(maxModTitle)
 
-      // 5. Fetch Analitik Kosakata dan Teks (analytics table)
-      const { data: analyticsData, error: aErr } = await supabase
-        .from('analytics')
-        .select('*')
-        .order('recorded_at', { ascending: false })
-        .limit(1) as any
-
-      if (aErr) throw aErr
       const analytics = analyticsData?.[0] as any
-
       if (analytics) {
         setHardVocab(analytics.hard_vocab || [])
         setHardTexts(analytics.hard_texts || [])
       } else {
-        // Fallback dummy jika analitik belum direkam cron job database
         setHardVocab(['sewing machine', 'pattern drafting', 'measurement', 'seam allowance', 'fabric bias'])
         setHardTexts(['Teks 1: Drafting the Bodice', 'Teks 3: Sewing the Zipper'])
       }

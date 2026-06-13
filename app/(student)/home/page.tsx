@@ -44,18 +44,24 @@ export default async function StudentHomePage() {
     redirect('/login')
   }
 
-  // 1. Fetch user & student profiles
-  const { data: userProfile } = await supabase
-    .from('users')
-    .select('name, class_id')
-    .eq('id', user.id)
-    .single() as any
+  const currentWeek = getCurrentISOWeek()
 
-  const { data: studentProfile } = await supabase
-    .from('students')
-    .select('xp, streak, level, modules_completed, badges')
-    .eq('id', user.id)
-    .single() as any
+  // Jalankan SEMUA query secara paralel dengan Promise.all() — jauh lebih cepat!
+  const [
+    { data: userProfile },
+    { data: studentProfile },
+    { data: latestFeedback },
+    { data: dbModules },
+    { data: allReviews },
+    { data: leaderboardData },
+  ] = await Promise.all([
+    supabase.from('users').select('name, class_id').eq('id', user.id).single() as any,
+    supabase.from('students').select('xp, streak, level, modules_completed, badges').eq('id', user.id).single() as any,
+    supabase.from('ai_feedback').select('weak_topic, message, recommended_activity, est_time_minutes').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle() as any,
+    supabase.from('modules').select('id, number, title, tagline, emoji, published').order('number', { ascending: true }) as any,
+    supabase.from('reviews').select('module_id, rating') as any,
+    supabase.from('leaderboards').select('user_id, xp, users(name)').eq('week_id', currentWeek).order('xp', { ascending: false }).limit(3) as any,
+  ])
 
   if (!userProfile || !studentProfile) {
     redirect('/login')
@@ -64,26 +70,6 @@ export default async function StudentHomePage() {
   const { name } = userProfile
   const { xp, streak, level: studentLevel, modules_completed = [], badges = [] } = studentProfile
   const { levelName, emoji, nextLevelXp, prevLevelXp } = getXpLevelInfo(xp)
-
-  // 2. Fetch AI / Smart Feedback
-  const { data: latestFeedback } = await supabase
-    .from('ai_feedback')
-    .select('weak_topic, message, recommended_activity, est_time_minutes')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle() as any
-
-  // 3. Fetch All Modules
-  const { data: dbModules } = await supabase
-    .from('modules')
-    .select('id, number, title, tagline, emoji, published')
-    .order('number', { ascending: true }) as any
-
-  // 4. Fetch Reviews (to get average rating)
-  const { data: allReviews } = await supabase
-    .from('reviews')
-    .select('module_id, rating') as any
 
   // Calculate ratings per module
   const ratingMap: Record<string, { total: number; count: number }> = {}
@@ -94,15 +80,6 @@ export default async function StudentHomePage() {
     ratingMap[rev.module_id].total += rev.rating
     ratingMap[rev.module_id].count += 1
   })
-
-  // 5. Fetch Weekly Leaderboard
-  const currentWeek = getCurrentISOWeek()
-  const { data: leaderboardData } = await supabase
-    .from('leaderboards')
-    .select('user_id, xp, users(name)')
-    .eq('week_id', currentWeek)
-    .order('xp', { ascending: false })
-    .limit(3) as any
 
   // Find next target module
   const incompleteModules = dbModules?.filter((m: any) => !modules_completed.includes(m.id.toString()) && m.published) || []

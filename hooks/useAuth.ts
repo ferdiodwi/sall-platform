@@ -11,6 +11,13 @@ interface AuthState {
   loading: boolean
 }
 
+// Baca role dari cookie browser (di-set saat login) — tanpa query DB
+function getRoleFromCookie(): UserRole | null {
+  if (typeof document === 'undefined') return null
+  const match = document.cookie.match(/(?:^|;\s*)user-role=([^;]+)/)
+  return (match?.[1] as UserRole) ?? null
+}
+
 export function useAuth() {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -21,15 +28,11 @@ export function useAuth() {
   const supabase = createClient()
 
   useEffect(() => {
-    // Ambil session awal
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
+    // Ambil session awal — role dari cookie, tidak ada query DB
+    supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
-        const { data: profile } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', user.id)
-          .single<{ role: string }>()
-        setState({ user, role: (profile?.role as UserRole) ?? 'student', loading: false })
+        const role = getRoleFromCookie() ?? 'student'
+        setState({ user, role, loading: false })
       } else {
         setState({ user: null, role: null, loading: false })
       }
@@ -37,18 +40,10 @@ export function useAuth() {
 
     // Subscribe ke perubahan auth state
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (session?.user) {
-          const { data: profile } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', session.user.id)
-            .single<{ role: string }>()
-          setState({
-            user: session.user,
-            role: (profile?.role as UserRole) ?? 'student',
-            loading: false,
-          })
+          const role = getRoleFromCookie() ?? 'student'
+          setState({ user: session.user, role, loading: false })
         } else {
           setState({ user: null, role: null, loading: false })
         }
@@ -60,6 +55,8 @@ export function useAuth() {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
+    // Hapus cookie role saat logout
+    document.cookie = 'user-role=; max-age=0; path=/'
     window.location.href = '/login'
   }, [supabase])
 
