@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter, Playfair_Display } from 'next/font/google'
 import './globals.css'
+import NextTopLoader from 'nextjs-toploader'
 
 const inter = Inter({
   variable: '--font-inter',
@@ -38,6 +39,7 @@ export default function RootLayout({
       className={`${inter.variable} ${playfairDisplay.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-rose-50 font-sans text-gray-800">
+        <NextTopLoader color="#f43f5e" showSpinner={false} />
         {children}
       </body>
     </html>
