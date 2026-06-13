@@ -144,6 +144,23 @@ export default function ModuleDetailClient({
   const handleAddToWordWall = async (word: string, meaning: string) => {
     if (!userProfile) return
     try {
+      // 1. Cek duplikat case-insensitive
+      const { data: existing } = await (supabase
+        .from('word_wall') as any)
+        .select('id')
+        .eq('user_id', userProfile.id)
+        .eq('word', word)
+        .maybeSingle()
+
+      if (existing) {
+        alert('Kosakata ini sudah ada di Word Wall Anda!')
+        if (!addedVocab.includes(word)) {
+          setAddedVocab(prev => [...prev, word])
+        }
+        return
+      }
+
+      // 2. Insert baru
       const { error } = await (supabase
         .from('word_wall') as any)
         .insert({
@@ -151,10 +168,30 @@ export default function ModuleDetailClient({
           word,
           meaning,
           status: 'baru',
+          review_history: [{ reviewedAt: new Date().toISOString(), status: 'baru' }],
         })
 
       if (error) throw error
       setAddedVocab(prev => [...prev, word])
+
+      // 3. Cek total kata untuk award lencana Vocabulary Master jika >= 50
+      const { count } = await (supabase
+        .from('word_wall') as any)
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userProfile.id)
+
+      if (count !== null && count >= 50) {
+        await fetch('/api/award-xp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: userProfile.id,
+            event: 'badge_check',
+          }),
+        })
+      }
     } catch (err) {
       console.error('Error adding to Word Wall:', err)
     }

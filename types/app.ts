@@ -29,6 +29,7 @@ export type XPEventType =
   | 'worksheet_submit'
   | 'journal_write'
   | 'placement_quiz'
+  | 'badge_check'
 
 // --- XP Level Thresholds ---
 export const XP_LEVELS = {
@@ -47,6 +48,7 @@ export const XP_AWARDS: Record<XPEventType, number> = {
   worksheet_submit: 15,
   journal_write: 10,
   placement_quiz: 10,
+  badge_check: 0,
 }
 
 // --- Interfaces ---
