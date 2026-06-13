@@ -1,11 +1,12 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { getXpLevelInfo } from '../shared/XpLevelBadge'
 import { Progress } from '../ui/progress'
+import { createClient } from '@/lib/supabase/client'
 import { 
   ClipboardCheck, 
   BookOpen, 
@@ -35,6 +36,22 @@ export function Sidebar({ studentData, loading }: SidebarProps) {
   const pathname = usePathname()
   const { signOut } = useAuth()
   const [modulesExpanded, setModulesExpanded] = useState(true)
+  const [dbModules, setDbModules] = useState<{ id: string; number: number; title: string }[]>([])
+
+  useEffect(() => {
+    const fetchSidebarModules = async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('modules')
+        .select('id, number, title')
+        .eq('published', true)
+        .order('order', { ascending: true }) as any
+      if (data) {
+        setDbModules(data)
+      }
+    }
+    fetchSidebarModules()
+  }, [])
 
   if (loading || !studentData) {
     return (
@@ -63,13 +80,10 @@ export function Sidebar({ studentData, loading }: SidebarProps) {
       href: '/modules',
       icon: BookOpen,
       hasSub: true,
-      subItems: [
-        { name: 'Modul 1: Vocab Builder', href: '/modules/1' },
-        { name: 'Modul 2: Reading Station', href: '/modules/2' },
-        { name: 'Modul 3: Label Reader', href: '/modules/3' },
-        { name: 'Modul 4: Catalogue Reader', href: '/modules/4' },
-        { name: 'Modul 5: Sewing Instructions', href: '/modules/5' },
-      ],
+      subItems: dbModules.map(m => ({
+        name: `Modul ${m.number}: ${m.title}`,
+        href: `/modules/${m.id}`
+      })),
     },
     { name: 'Jurnal Digital', href: '/journal', icon: BookText },
     { name: 'My Word Wall', href: '/word-wall', icon: Compass },

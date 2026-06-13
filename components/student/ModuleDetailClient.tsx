@@ -16,7 +16,7 @@ interface LevelContent { level: 'beginner' | 'intermediate'; content_html: strin
 interface Worksheet { id: string; title: string; file_url: string | null; format: string | null; interactive: boolean }
 interface Resource { id: string; type: 'video' | 'audio' | 'worksheet' | 'reading' | 'pdf' | 'docx' | 'pptx'; title: string; url: string; format?: string | null; meta?: any }
 interface Review { id: string; module_id: string; author_id: string; rating: number; comment: string | null; emoji: string | null; pinned: boolean; teacher_reply: string | null; created_at: string; author_name?: string }
-interface VocabWord { id: string; word: string; meaning: string; example: string; emoji: string; category: string; order: number }
+interface VocabWord { id: string; word: string; meaning: string; example: string; emoji: string; category: string; order: number; level: 'beginner' | 'intermediate' }
 
 interface ModuleDetailClientProps {
   module: { id: string; number: number; title: string; tagline: string | null; emoji: string | null }
@@ -183,13 +183,13 @@ function EmptyVocab({ message }: { message?: string }) {
 }
 
 // ─── Quiz Link Section ────────────────────────────────────────────────────────
-function QuizSection({ module }: { module: { id: string; title: string } }) {
+function QuizSection({ module, level }: { module: { id: string; title: string }; level: 'beginner' | 'intermediate' }) {
   return (
     <div className="max-w-xl mx-auto text-center py-8 space-y-4">
       <div className="text-5xl">❓</div>
       <h3 className="text-xl font-bold text-gray-800">Kuis Modul</h3>
       <p className="text-gray-500 text-sm">Uji pemahamanmu dari materi yang telah kamu pelajari.</p>
-      <Link href={`/modules/${module.id}/quiz`}>
+      <Link href={`/modules/${module.id}/quiz?level=${level}`}>
         <Button className="bg-rose-500 hover:bg-rose-600 text-white px-8 py-3 rounded-2xl font-bold text-base flex items-center gap-2 mx-auto">
           Mulai Kuis <ArrowRight size={18} />
         </Button>
@@ -203,9 +203,13 @@ export default function ModuleDetailClient({ module, levels, worksheets, resourc
   const supabase = createClient()
   const [activeTab, setActiveTab] = useState<ActivityTab>('flashcards')
   const [studentLevel, setStudentLevel] = useState<'beginner' | 'intermediate'>('beginner')
-  const [vocabWords, setVocabWords] = useState<VocabWord[]>([])
+  const [allVocabs, setAllVocabs] = useState<VocabWord[]>([])
   const [loadingVocab, setLoadingVocab] = useState(true)
   const [loadingProgress, setLoadingProgress] = useState<Record<string, boolean>>({})
+
+  const vocabWords = useMemo(() => {
+    return allVocabs.filter(v => v.level === studentLevel)
+  }, [allVocabs, studentLevel])
 
   useEffect(() => {
     const init = async () => {
@@ -215,9 +219,9 @@ export default function ModuleDetailClient({ module, levels, worksheets, resourc
         supabase.from('students').select('level').eq('id', user.id).single() as any,
         supabase.from('vocab_words').select('*').eq('module_id', module.id).order('order', { ascending: true }) as any,
       ])
-      const level = student?.level || 'beginner'
-      setStudentLevel(level)
-      setVocabWords((vocab || []).filter((v: any) => v.level === level))
+      const initialLevel = student?.level || 'beginner'
+      setStudentLevel(initialLevel)
+      setAllVocabs(vocab || [])
       setLoadingVocab(false)
     }
     init()
@@ -249,9 +253,32 @@ export default function ModuleDetailClient({ module, levels, worksheets, resourc
             <span className="text-xs font-bold text-rose-500 uppercase tracking-widest">Modul {module.number}</span>
             <h1 className="text-2xl font-extrabold text-gray-800 mt-1">{module.title}</h1>
             {module.tagline && <p className="text-gray-500 text-sm mt-1">{module.tagline}</p>}
-            <span className={`inline-block mt-2 text-xs font-bold px-2.5 py-1 rounded-full ${studentLevel === 'intermediate' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
-              {studentLevel === 'intermediate' ? '🔵 Intermediate' : '🟢 Beginner'}
-            </span>
+            
+            {/* Level Selector Tabs */}
+            <div className="flex border border-rose-100/60 gap-1 bg-rose-50/20 p-1 rounded-2xl w-fit mt-3">
+              <button
+                type="button"
+                onClick={() => setStudentLevel('beginner')}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  studentLevel === 'beginner'
+                    ? 'bg-emerald-500 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-emerald-600 hover:bg-emerald-50/20'
+                }`}
+              >
+                🟢 Beginner
+              </button>
+              <button
+                type="button"
+                onClick={() => setStudentLevel('intermediate')}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  studentLevel === 'intermediate'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50/20'
+                }`}
+              >
+                🔵 Intermediate
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -279,7 +306,7 @@ export default function ModuleDetailClient({ module, levels, worksheets, resourc
             {activeTab === 'dictionary' && <VisualDictionary words={vocabWords} />}
             {activeTab === 'matching' && <WordMatching words={vocabWords} />}
             {activeTab === 'fillblank' && <FillInBlank words={vocabWords} />}
-            {activeTab === 'quiz' && <QuizSection module={module} />}
+            {activeTab === 'quiz' && <QuizSection module={module} level={studentLevel} />}
 
             {activeTab === 'reading' && (
               <div className="space-y-6">

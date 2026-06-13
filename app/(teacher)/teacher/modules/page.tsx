@@ -13,7 +13,8 @@ import {
   Users, 
   Award,
   Sparkles,
-  BookMarked
+  BookMarked,
+  Bookmark
 } from 'lucide-react'
 
 interface ModuleItem {
@@ -246,6 +247,13 @@ export default function TeacherModulesPage() {
                 >
                   <BookMarked size={14} />
                   Kelola Kuis
+                </Link>
+                <Link
+                  href={`/teacher/modules/${m.id}/vocab`}
+                  className="flex items-center gap-1.5 px-3.5 py-2 hover:bg-amber-50 text-amber-600 rounded-xl text-xs font-semibold transition-colors min-h-[38px]"
+                >
+                  <Bookmark size={14} />
+                  Kelola Kosakata
                 </Link>
               </div>
 

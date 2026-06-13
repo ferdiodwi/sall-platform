@@ -75,13 +75,21 @@ export default function ModuleQuizPage() {
           return
         }
 
-        // Parallelkan fetch student level + quiz data
-        const [{ data: student }, { data: quizData, error: quizErr }] = await Promise.all([
-          supabase.from('students').select('level').eq('id', session.user.id).single() as any,
-          supabase.from('quizzes').select('*').eq('module_id', moduleId).single() as any,
-        ])
+        // Fetch student level
+        const { data: student } = await supabase.from('students').select('level').eq('id', session.user.id).single() as any
 
-        const level = student?.level || 'beginner'
+        // Read query parameter level, fallback to student's database level
+        const urlParams = new URLSearchParams(window.location.search)
+        const levelParam = urlParams.get('level')
+        const level = levelParam === 'beginner' || levelParam === 'intermediate' ? levelParam : (student?.level || 'beginner')
+
+        // Fetch quiz matching both module_id and level
+        const { data: quizData, error: quizErr } = await supabase
+          .from('quizzes')
+          .select('*')
+          .eq('module_id', moduleId)
+          .eq('level', level)
+          .single() as any
 
         if (quizErr || !quizData) {
           throw new Error('Kuis untuk modul ini tidak ditemukan.')

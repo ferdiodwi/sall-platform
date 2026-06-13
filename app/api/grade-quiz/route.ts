@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     let calculatedLevel: 'beginner' | 'intermediate' | null = null
     let newlyAwardedBadges: string[] = []
 
-    if (quiz.level === 'placement' || quizId === '22222222-0001-0001-0001-000000000001') {
+    if (quiz.level === 'placement' || quizId === '00000000-0000-0000-0001-000000000001') {
       calculatedLevel = correctCount >= 6 ? 'intermediate' : 'beginner'
 
       // Cek limitasi 30 hari di database
