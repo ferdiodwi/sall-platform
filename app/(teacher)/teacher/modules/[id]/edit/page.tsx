@@ -3,7 +3,12 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { WysiwygEditor } from '@/components/teacher/WysiwygEditor'
+import dynamic from 'next/dynamic'
+
+const WysiwygEditor = dynamic(
+  () => import('@/components/teacher/WysiwygEditor').then(mod => mod.WysiwygEditor),
+  { ssr: false, loading: () => <div className="h-48 border border-rose-100 rounded-xl bg-rose-50/20 animate-pulse flex items-center justify-center text-sm text-rose-400">Memuat Editor Teks...</div> }
+)
 import DOMPurify from 'dompurify'
 import { ArrowLeft, Save, Sparkles } from 'lucide-react'
 import Link from 'next/link'
