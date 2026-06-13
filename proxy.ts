@@ -5,8 +5,9 @@ export default async function proxy(request: NextRequest) {
   const { supabase, supabaseResponse } = createMiddlewareClient(request)
   const { pathname } = request.nextUrl
 
-  // Refresh session agar tidak expired
-  const { data: { user } } = await supabase.auth.getUser()
+  // Refresh session dari cookie — TANPA network request ke Supabase
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user ?? null
 
   // Baca role dari cookie (di-set saat login) — tanpa query DB
   const cachedRole = request.cookies.get('user-role')?.value

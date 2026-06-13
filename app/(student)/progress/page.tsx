@@ -48,206 +48,114 @@ export default function ProgressPage() {
       try {
         setLoading(true)
 
-        // 1. Fetch Student Profile
-        const { data: studentData, error: studentErr } = await (supabase
-          .from('students') as any)
-          .select('xp, streak, badges, placement_date')
-          .eq('id', user.id)
-          .single()
-
-        if (studentErr) throw studentErr
-        setStudent(studentData)
-
-        // 2. Fetch Word Wall Stats
-        const { data: words, error: wordsErr } = await (supabase
-          .from('word_wall') as any)
-          .select('status')
-          .eq('user_id', user.id)
-
-        if (!wordsErr && words) {
-          const formattedWords = words as any[]
-          const stats = {
-            total: formattedWords.length,
-            baru: formattedWords.filter((w) => w.status === 'baru').length,
-            belajar: formattedWords.filter((w) => w.status === 'sedang dipelajari').length,
-            dikuasai: formattedWords.filter((w) => w.status === 'dikuasai').length,
-          }
-          setWordWallStats(stats)
-        }
-
-        // 3. Fetch Journals & calculate streak
-        const { data: journals, error: journalErr } = await (supabase
-          .from('journals') as any)
-          .select('created_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-
-        if (!journalErr && journals) {
-          const formattedJournals = journals as any[]
-          // Calculate streak
-          let streak = 0
-          if (formattedJournals.length > 0) {
-            const uniqueDates = Array.from(
-              new Set(formattedJournals.map((j) => new Date(j.created_at).toLocaleDateString('en-CA')))
-            )
-              .map((d) => new Date(d))
-              .sort((a, b) => b.getTime() - a.getTime())
-
-            const today = new Date()
-            const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-            const firstEntryDate = uniqueDates[0]
-            const firstEntryDateOnly = new Date(
-              firstEntryDate.getFullYear(),
-              firstEntryDate.getMonth(),
-              firstEntryDate.getDate()
-            )
-
-            const diffTime = todayDateOnly.getTime() - firstEntryDateOnly.getTime()
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-
-            if (diffDays <= 1) {
-              streak = 1
-              for (let i = 0; i < uniqueDates.length - 1; i++) {
-                const current = new Date(
-                  uniqueDates[i].getFullYear(),
-                  uniqueDates[i].getMonth(),
-                  uniqueDates[i].getDate()
-                )
-                const next = new Date(
-                  uniqueDates[i + 1].getFullYear(),
-                  uniqueDates[i + 1].getMonth(),
-                  uniqueDates[i + 1].getDate()
-                )
-                const dayDiff = Math.floor((current.getTime() - next.getTime()) / (1000 * 60 * 60 * 24))
-                if (dayDiff === 1) {
-                  streak++
-                } else if (dayDiff > 1) {
-                  break
-                }
-              }
-            }
-          }
-
-          const currentMonth = new Date().getMonth()
-          const currentYear = new Date().getFullYear()
-          const entriesThisMonth = formattedJournals.filter((j) => {
-            const d = new Date(j.created_at)
-            return d.getFullYear() === currentYear && d.getMonth() === currentMonth
-          }).length
-
-          setJournalStats({
-            total: formattedJournals.length,
-            streak,
-            thisMonth: entriesThisMonth,
-          })
-        }
-
-        // 4. Fetch Modules & Progress
-        // Get published modules
-        const { data: modules, error: modErr } = await (supabase
-          .from('modules') as any)
-          .select('id, number, title')
-          .eq('published', true)
-          .order('number', { ascending: true })
-
-        if (!modErr && modules) {
-          const formattedModules = modules as any[]
-          // Get all questions in quizzes of these modules
-          const { data: questions, error: qErr } = await (supabase
-            .from('questions') as any)
-            .select('id, topic, quizzes!inner(module_id)')
-
-          // Get all answered questions in feedback
-          const { data: feedbackData, error: fErr } = await (supabase
-            .from('feedback') as any)
-            .select('question_id')
-            .eq('user_id', user.id)
-
-          if (!qErr && questions && !fErr && feedbackData) {
-            const formattedQuestions = questions as any[]
-            const formattedFeedback = feedbackData as any[]
-            const answeredIds = new Set(formattedFeedback.map((f) => f.question_id))
-
-            const progresses = formattedModules.map((mod) => {
-              // Filter questions belonging to this module
-              const modQuestions = formattedQuestions.filter(
-                (q: any) => q.quizzes?.module_id === mod.id
-              )
-              const totalCount = modQuestions.length
-              const completedCount = modQuestions.filter((q: any) => answeredIds.has(q.id)).length
-
-              return {
-                id: mod.id,
-                number: mod.number,
-                title: mod.title,
-                completed: completedCount,
-                total: totalCount,
-              }
-            })
-            setModuleProgress(progresses)
-          }
-        }
-
-        // 5. Fetch Weekly Activity Chart Data (last 7 days)
         const sevenDaysAgo = new Date()
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
         sevenDaysAgo.setHours(0, 0, 0, 0)
 
-        const { data: recentFeedback, error: rfErr } = await (supabase
-          .from('feedback') as any)
-          .select('shown_at')
-          .eq('user_id', user.id)
-          .gte('shown_at', sevenDaysAgo.toISOString())
+        // Jalankan SEMUA query paralel dengan Promise.all()
+        const [
+          { data: studentData, error: studentErr },
+          { data: words },
+          { data: journals },
+          { data: modules },
+          { data: questions },
+          { data: feedbackData },
+          { data: recentFeedback },
+          { data: aiFeedback },
+        ] = await Promise.all([
+          (supabase.from('students') as any).select('xp, streak, badges, placement_date').eq('id', user.id).single(),
+          (supabase.from('word_wall') as any).select('status').eq('user_id', user.id),
+          (supabase.from('journals') as any).select('created_at').eq('user_id', user.id).order('created_at', { ascending: false }),
+          (supabase.from('modules') as any).select('id, number, title').eq('published', true).order('number', { ascending: true }),
+          (supabase.from('questions') as any).select('id, topic, quizzes!inner(module_id)'),
+          (supabase.from('feedback') as any).select('question_id').eq('user_id', user.id),
+          (supabase.from('feedback') as any).select('shown_at').eq('user_id', user.id).gte('shown_at', sevenDaysAgo.toISOString()),
+          (supabase.from('ai_feedback') as any).select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        ])
 
-        if (!rfErr && recentFeedback) {
-          const formattedRecent = recentFeedback as any[]
-          // Group by weekday
-          const weekdayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
-          const chartMap: Record<string, number> = {}
+        if (studentErr) throw studentErr
+        setStudent(studentData)
 
-          // Initialize last 7 days
-          for (let i = 0; i < 7; i++) {
-            const d = new Date()
-            d.setDate(d.getDate() - i)
-            const dayName = weekdayNames[d.getDay()]
-            chartMap[dayName] = 0
+        // Word Wall Stats
+        if (words) {
+          const w = words as any[]
+          setWordWallStats({
+            total: w.length,
+            baru: w.filter((x) => x.status === 'baru').length,
+            belajar: w.filter((x) => x.status === 'sedang dipelajari').length,
+            dikuasai: w.filter((x) => x.status === 'dikuasai').length,
+          })
+        }
+
+        // Journal streak calculation
+        if (journals) {
+          const formattedJournals = journals as any[]
+          let streak = 0
+          if (formattedJournals.length > 0) {
+            const uniqueDates = Array.from(
+              new Set(formattedJournals.map((j) => new Date(j.created_at).toLocaleDateString('en-CA')))
+            ).map((d) => new Date(d)).sort((a, b) => b.getTime() - a.getTime())
+
+            const today = new Date()
+            const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+            const firstOnly = new Date(uniqueDates[0].getFullYear(), uniqueDates[0].getMonth(), uniqueDates[0].getDate())
+            const diffDays = Math.floor((todayOnly.getTime() - firstOnly.getTime()) / (1000 * 60 * 60 * 24))
+
+            if (diffDays <= 1) {
+              streak = 1
+              for (let i = 0; i < uniqueDates.length - 1; i++) {
+                const cur = new Date(uniqueDates[i].getFullYear(), uniqueDates[i].getMonth(), uniqueDates[i].getDate())
+                const nxt = new Date(uniqueDates[i+1].getFullYear(), uniqueDates[i+1].getMonth(), uniqueDates[i+1].getDate())
+                const dayDiff = Math.floor((cur.getTime() - nxt.getTime()) / (1000 * 60 * 60 * 24))
+                if (dayDiff === 1) streak++
+                else if (dayDiff > 1) break
+              }
+            }
           }
+          const cm = new Date().getMonth(), cy = new Date().getFullYear()
+          setJournalStats({
+            total: (journals as any[]).length,
+            streak,
+            thisMonth: (journals as any[]).filter((j) => { const d = new Date(j.created_at); return d.getFullYear() === cy && d.getMonth() === cm }).length,
+          })
+        }
 
-          // Populate with actual feedback counts
-          formattedRecent.forEach((f) => {
-            const d = new Date(f.shown_at)
-            const dayName = weekdayNames[d.getDay()]
-            if (chartMap[dayName] !== undefined) {
-              chartMap[dayName] += 1
+        // Module progress calculation
+        if (modules && questions && feedbackData) {
+          const answeredIds = new Set((feedbackData as any[]).map((f) => f.question_id))
+          const progresses = (modules as any[]).map((mod) => {
+            const modQs = (questions as any[]).filter((q: any) => q.quizzes?.module_id === mod.id)
+            return {
+              id: mod.id, number: mod.number, title: mod.title,
+              completed: modQs.filter((q: any) => answeredIds.has(q.id)).length,
+              total: modQs.length,
             }
           })
+          setModuleProgress(progresses)
+        }
 
-          // Transform to recharts format in chronological order
+        // Weekly chart
+        if (recentFeedback) {
+          const weekdayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
+          const chartMap: Record<string, number> = {}
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(); d.setDate(d.getDate() - i)
+            chartMap[weekdayNames[d.getDay()]] = 0
+          }
+          ;(recentFeedback as any[]).forEach((f) => {
+            const dayName = weekdayNames[new Date(f.shown_at).getDay()]
+            if (chartMap[dayName] !== undefined) chartMap[dayName] += 1
+          })
           const formattedChartData = []
           for (let i = 6; i >= 0; i--) {
-            const d = new Date()
-            d.setDate(d.getDate() - i)
+            const d = new Date(); d.setDate(d.getDate() - i)
             const dayName = weekdayNames[d.getDay()]
-            formattedChartData.push({
-              name: dayName,
-              soal: chartMap[dayName] || 0,
-            })
+            formattedChartData.push({ name: dayName, soal: chartMap[dayName] || 0 })
           }
           setChartData(formattedChartData)
         }
 
-        // 6. Fetch Latest AI Feedback
-        const { data: aiFeedback, error: aiFeedbackErr } = await (supabase
-          .from('ai_feedback') as any)
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-
-        if (!aiFeedbackErr && aiFeedback) {
-          setLatestAiFeedback(aiFeedback)
-        }
+        if (aiFeedback) setLatestAiFeedback(aiFeedback)
 
       } catch (err) {
         console.error('Error fetching progress data:', err)
