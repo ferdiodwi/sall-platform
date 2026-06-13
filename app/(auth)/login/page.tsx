@@ -51,19 +51,29 @@ export default function LoginPage() {
       return
     }
 
-    // Ambil role untuk redirect + simpan di cookie untuk mempercepat middleware
+    // Ambil role dan profil untuk redirect + simpan di cookie untuk mempercepat middleware
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      const { data: profile } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', user.id)
-        .single<{ role: string }>()
+      const [{ data: userProfile }, { data: studentProfile }] = await Promise.all([
+        supabase.from('users').select('role').eq('id', user.id).single() as any,
+        supabase.from('students').select('placement_date').eq('id', user.id).single() as any,
+      ])
 
-      const role = profile?.role ?? 'student'
+      const role = userProfile?.role ?? 'student'
       // Simpan role di cookie agar middleware tidak perlu query DB setiap navigasi
       document.cookie = `user-role=${role}; path=/; samesite=lax`
-      router.push(role === 'teacher' ? '/teacher/dashboard' : '/home')
+      
+      if (role === 'teacher') {
+        router.push('/teacher/dashboard')
+      } else {
+        // Jika siswa belum ada placement_date, paksa ke /placement-quiz
+        if (!studentProfile?.placement_date) {
+          router.push('/placement-quiz')
+        } else {
+          router.push('/home')
+        }
+      }
+      
       router.refresh()
     }
   }

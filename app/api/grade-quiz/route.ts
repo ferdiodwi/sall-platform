@@ -117,14 +117,9 @@ export async function POST(request: NextRequest) {
       }
 
       if (studentProfile?.placement_date) {
-        const lastPlacementDate = new Date(studentProfile.placement_date)
-        const daysSinceLast = (Date.now() - lastPlacementDate.getTime()) / (1000 * 60 * 60 * 24)
-        if (daysSinceLast < 30) {
-          const nextAvailableDate = new Date(lastPlacementDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-          return NextResponse.json({
-            error: `Limitasi 30 hari aktif. Anda baru bisa mengikuti Placement Quiz lagi setelah tanggal ${nextAvailableDate.toLocaleDateString('id-ID')}`,
-          }, { status: 400 })
-        }
+        return NextResponse.json({
+          error: 'Anda sudah menyelesaikan Placement Quiz sebelumnya.',
+        }, { status: 400 })
       }
 
       // Update level siswa di tabel students & users

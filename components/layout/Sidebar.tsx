@@ -58,7 +58,6 @@ export function Sidebar({ studentData, loading }: SidebarProps) {
 
   const menuItems = [
     { name: 'Dashboard', href: '/home', icon: LayoutDashboard },
-    { name: 'Placement Quiz', href: '/placement-quiz', icon: ClipboardCheck },
     {
       name: 'Modul Pembelajaran',
       href: '/modules',

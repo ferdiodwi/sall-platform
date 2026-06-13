@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createServerClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { TopBar } from '@/components/layout/TopBar'
+import PlacementGuard from '@/components/shared/PlacementGuard'
 
 export default async function StudentLayout({ children }: { children: ReactNode }) {
   const supabase = await createServerClient()
@@ -17,7 +18,7 @@ export default async function StudentLayout({ children }: { children: ReactNode 
   // Jalankan 2 query secara PARALEL
   const [{ data: userProfile }, { data: studentProfile }] = await Promise.all([
     supabase.from('users').select('name, email, class_id').eq('id', session.user.id).single() as any,
-    supabase.from('students').select('xp, streak, level').eq('id', session.user.id).single() as any,
+    supabase.from('students').select('xp, streak, level, placement_date').eq('id', session.user.id).single() as any,
   ])
 
   const studentData = userProfile && studentProfile ? {
@@ -31,6 +32,7 @@ export default async function StudentLayout({ children }: { children: ReactNode 
 
   return (
     <div className="flex h-screen w-screen bg-rose-50/20 overflow-hidden">
+      <PlacementGuard placementDate={studentProfile?.placement_date || null} />
       {/* Desktop Sidebar */}
       <div className="hidden md:block">
         <Sidebar studentData={studentData} loading={false} />

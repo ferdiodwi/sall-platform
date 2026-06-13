@@ -72,21 +72,10 @@ export default function PlacementQuizPage() {
         if (studentErr) throw studentErr
 
         if (student.placement_date) {
-          const lastDate = new Date(student.placement_date)
-          const daysSinceLast = (Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24)
-          if (daysSinceLast < 30) {
-            setIsEligible(false)
-            const nextDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-            setNextAvailableDate(nextDate.toLocaleDateString('id-ID', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            }))
-            setLoading(false)
-            setCheckingEligibility(false)
-            return
-          }
+          setIsEligible(false)
+          setLoading(false)
+          setCheckingEligibility(false)
+          return
         }
 
         setIsEligible(true)
@@ -162,8 +151,8 @@ export default function PlacementQuizPage() {
     )
   }
 
-  // 1. Lock Screen (Sudah Ambil Kuis & < 30 Hari)
-  if (!isEligible && nextAvailableDate) {
+  // 1. Lock Screen (Sudah Ambil Kuis)
+  if (!isEligible) {
     return (
       <div className="max-w-2xl mx-auto mt-10 p-1">
         <div className="bg-white rounded-3xl border border-rose-100 shadow-xl overflow-hidden p-8 md:p-10 flex flex-col items-center text-center gap-6 animate-scale-up">
@@ -176,16 +165,8 @@ export default function PlacementQuizPage() {
           </h2>
           
           <p className="text-gray-600 leading-relaxed text-sm md:text-base max-w-md">
-            Kamu sudah menyelesaikan Placement Quiz sebelumnya. Untuk menjaga objektivitas hasil belajar, kuis ini hanya dapat diulang sekali setiap 30 hari.
+            Kamu sudah menyelesaikan Placement Quiz sebelumnya. Kuis ini hanya dapat diikuti satu kali untuk menentukan tingkat pembelajaran awal kamu.
           </p>
-
-          <div className="bg-rose-50/50 border border-rose-100/50 rounded-2xl p-4 w-full max-w-md flex items-center gap-3.5 text-left">
-            <Calendar className="text-rose-500 shrink-0" size={24} />
-            <div>
-              <p className="text-xs font-semibold text-rose-500 uppercase tracking-wider">Tersedia Kembali Pada</p>
-              <p className="text-sm font-bold text-gray-700">{nextAvailableDate}</p>
-            </div>
-          </div>
 
           <Button
             onClick={() => router.push('/home')}

@@ -1,560 +1,328 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { 
-  BookOpen, 
-  HelpCircle, 
-  FileText, 
-  MessageSquare, 
-  FileCheck, 
-  ArrowRight, 
-  Download, 
-  Upload, 
-  Plus, 
-  Check, 
-  Eye 
+import {
+  BookOpen, HelpCircle, FileText, MessageSquare, FileCheck,
+  ArrowRight, Download, Upload, Plus, Check, Eye,
+  RefreshCw, ChevronLeft, ChevronRight as ChevronRightIcon,
 } from 'lucide-react'
 import ResourcePlayer from './ResourcePlayer'
 import ReviewSection from './ReviewSection'
 import { Button } from '@/components/ui/button'
 
-interface LevelContent {
-  level: 'beginner' | 'intermediate'
-  content_html: string
-}
-
-interface Worksheet {
-  id: string
-  title: string
-  file_url: string | null
-  format: string | null
-  interactive: boolean
-}
-
-interface Resource {
-  id: string
-  type: 'video' | 'audio' | 'worksheet' | 'reading' | 'pdf' | 'docx' | 'pptx'
-  title: string
-  url: string
-  format?: string | null
-  meta?: any | null
-}
-
-interface Review {
-  id: string
-  module_id: string
-  author_id: string
-  rating: number
-  comment: string | null
-  emoji: string | null
-  pinned: boolean
-  teacher_reply: string | null
-  created_at: string
-  author_name?: string
-}
+interface LevelContent { level: 'beginner' | 'intermediate'; content_html: string }
+interface Worksheet { id: string; title: string; file_url: string | null; format: string | null; interactive: boolean }
+interface Resource { id: string; type: 'video' | 'audio' | 'worksheet' | 'reading' | 'pdf' | 'docx' | 'pptx'; title: string; url: string; format?: string | null; meta?: any }
+interface Review { id: string; module_id: string; author_id: string; rating: number; comment: string | null; emoji: string | null; pinned: boolean; teacher_reply: string | null; created_at: string; author_name?: string }
+interface VocabWord { id: string; word: string; meaning: string; example: string; emoji: string; category: string; order: number }
 
 interface ModuleDetailClientProps {
-  module: {
-    id: string
-    number: number
-    title: string
-    tagline: string | null
-    emoji: string | null
-  }
+  module: { id: string; number: number; title: string; tagline: string | null; emoji: string | null }
   levels: LevelContent[]
   worksheets: Worksheet[]
   resources: Resource[]
   reviews: Review[]
 }
 
-const DEFAULT_VOCAB = [
-  { word: 'measurement', meaning: 'ukuran, pengukuran' },
-  { word: 'pattern', meaning: 'pola baju' },
-  { word: 'sewing machine', meaning: 'mesin jahit' },
-  { word: 'fabric', meaning: 'kain, bahan pakaian' },
-  { word: 'hemline', meaning: 'tepi bawah pakaian' },
+type ActivityTab = 'flashcards' | 'dictionary' | 'matching' | 'fillblank' | 'quiz' | 'reading' | 'review'
+
+const ACTIVITY_TABS: { key: ActivityTab; label: string; icon: string }[] = [
+  { key: 'flashcards', label: 'Flashcards', icon: '🃏' },
+  { key: 'dictionary', label: 'Kamus', icon: '📖' },
+  { key: 'matching', label: 'Matching', icon: '🔤' },
+  { key: 'fillblank', label: 'Fill Blank', icon: '✏️' },
+  { key: 'quiz', label: 'Quiz', icon: '❓' },
+  { key: 'reading', label: 'Materi', icon: '📚' },
+  { key: 'review', label: 'Ulasan', icon: '💬' },
 ]
 
-export default function ModuleDetailClient({
-  module,
-  levels,
-  worksheets,
-  resources,
-  reviews,
-}: ModuleDetailClientProps) {
-  const supabase = createClient()
-  
-  const [activeTab, setActiveTab] = useState<'content' | 'resources' | 'worksheet' | 'reviews'>('content')
-  const [userProfile, setUserProfile] = useState<any>(null)
-  
-  // Level selection state (default ke level siswa, bisa di-toggle)
-  const [selectedLevel, setSelectedLevel] = useState<'beginner' | 'intermediate'>('beginner')
-  
-  // Vocab Word Wall states
-  const [addedVocab, setAddedVocab] = useState<string[]>([])
-  
-  // Worksheet submission states
-  const [submissions, setSubmissions] = useState<any[]>([])
-  const [submitUrl, setSubmitUrl] = useState('')
-  const [submittingFile, setSubmittingFile] = useState(false)
-  
-  // Fetch user profile and existing submissions client-side
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-        setUserProfile(user)
+// ─── Flashcards ───────────────────────────────────────────────────────────────
+function Flashcards({ words, onSaveWord }: { words: VocabWord[]; onSaveWord: (w: VocabWord) => void }) {
+  const [i, setI] = useState(0)
+  const [flipped, setFlipped] = useState(false)
+  const [saved, setSaved] = useState<Set<string>>(new Set())
+  if (words.length === 0) return <EmptyVocab />
+  const w = words[i]
+  const prev = () => { setI(n => (n - 1 + words.length) % words.length); setFlipped(false) }
+  const next = () => { setI(n => (n + 1) % words.length); setFlipped(false) }
+  const save = () => { onSaveWord(w); setSaved(s => new Set(s).add(w.id)) }
+  return (
+    <div className="flex flex-col items-center gap-5">
+      <p className="text-xs font-semibold text-gray-400">Kartu {i + 1} / {words.length}</p>
+      <button onClick={() => setFlipped(f => !f)}
+        className="w-full max-w-sm min-h-56 rounded-3xl bg-gradient-to-br from-rose-50 to-pink-100 ring-2 ring-rose-200 flex flex-col items-center justify-center gap-3 p-8 transition active:scale-95 cursor-pointer select-none shadow-md hover:shadow-lg">
+        {!flipped ? (
+          <><span className="text-6xl">{w.emoji}</span><span className="text-3xl font-extrabold text-gray-900 mt-2">{w.word}</span><span className="text-xs text-gray-400 mt-1">(ketuk untuk arti)</span></>
+        ) : (
+          <><span className="text-2xl font-extrabold text-rose-600">{w.meaning}</span><span className="text-sm italic text-gray-500 mt-2 text-center">"{w.example}"</span><span className="text-xs bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full mt-1">{w.category}</span></>
+        )}
+      </button>
+      <div className="flex items-center gap-3">
+        <button onClick={prev} className="p-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 transition"><ChevronLeft size={18} /></button>
+        <button onClick={save} disabled={saved.has(w.id)}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition ${saved.has(w.id) ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-rose-500 text-white hover:bg-rose-600'}`}>
+          {saved.has(w.id) ? <><Check size={14} /> Tersimpan</> : <>+ Word Wall</>}
+        </button>
+        <button onClick={next} className="p-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 transition"><ChevronRightIcon size={18} /></button>
+      </div>
+    </div>
+  )
+}
 
-        // Ambil level siswa
-        const { data: student } = await supabase
-          .from('students')
-          .select('level')
-          .eq('id', user.id)
-          .single() as any
+// ─── Visual Dictionary ────────────────────────────────────────────────────────
+function VisualDictionary({ words }: { words: VocabWord[] }) {
+  if (words.length === 0) return <EmptyVocab />
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      {words.map(w => (
+        <div key={w.id} className="bg-white border border-rose-100 rounded-2xl p-4 text-center hover:-translate-y-1 hover:shadow-md transition-all duration-200">
+          <div className="text-4xl mb-2">{w.emoji}</div>
+          <p className="font-extrabold text-gray-900 text-sm">{w.word}</p>
+          <p className="text-rose-600 text-xs mt-0.5 font-medium">{w.meaning}</p>
+          <p className="text-gray-400 text-xs mt-1 italic leading-snug line-clamp-2">"{w.example}"</p>
+          <span className="inline-block mt-1.5 text-[10px] bg-rose-50 text-rose-500 px-2 py-0.5 rounded-full">{w.category}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
-        if (student?.level) {
-          setSelectedLevel(student.level)
-        }
+// ─── Word Matching ────────────────────────────────────────────────────────────
+function WordMatching({ words }: { words: VocabWord[] }) {
+  const pairs = useMemo(() => words.slice(0, Math.min(6, words.length)), [words])
+  const shuffled = useMemo(() => [...pairs].sort(() => Math.random() - 0.5), [pairs])
+  const [selected, setSelected] = useState<string | null>(null)
+  const [matched, setMatched] = useState<Set<string>>(new Set())
+  const [feedback, setFeedback] = useState('')
+  const [xpEarned, setXpEarned] = useState(0)
 
-        // Ambil submission worksheet siswa untuk modul ini
-        const worksheetIds = worksheets.map(w => w.id)
-        if (worksheetIds.length > 0) {
-          const { data: subData } = await supabase
-            .from('worksheet_submissions')
-            .select('*')
-            .in('worksheet_id', worksheetIds)
-            .eq('user_id', user.id) as any
+  if (words.length < 2) return <EmptyVocab message="Tambahkan minimal 2 kosakata untuk aktivitas ini." />
 
-          if (subData) {
-            setSubmissions(subData)
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching user data in detail:', err)
-      }
-    }
-
-    fetchUserData()
-  }, [supabase, worksheets])
-
-  // Tambah kata ke Word Wall
-  const handleAddToWordWall = async (word: string, meaning: string) => {
-    if (!userProfile) return
-    try {
-      // 1. Cek duplikat case-insensitive
-      const { data: existing } = await (supabase
-        .from('word_wall') as any)
-        .select('id')
-        .eq('user_id', userProfile.id)
-        .eq('word', word)
-        .maybeSingle()
-
-      if (existing) {
-        alert('Kosakata ini sudah ada di Word Wall Anda!')
-        if (!addedVocab.includes(word)) {
-          setAddedVocab(prev => [...prev, word])
-        }
-        return
-      }
-
-      // 2. Insert baru
-      const { error } = await (supabase
-        .from('word_wall') as any)
-        .insert({
-          user_id: userProfile.id,
-          word,
-          meaning,
-          status: 'baru',
-          review_history: [{ reviewedAt: new Date().toISOString(), status: 'baru' }],
-        })
-
-      if (error) throw error
-      setAddedVocab(prev => [...prev, word])
-
-      // 3. Cek total kata untuk award lencana Vocabulary Master jika >= 50
-      const { count } = await (supabase
-        .from('word_wall') as any)
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userProfile.id)
-
-      if (count !== null && count >= 50) {
-        await fetch('/api/award-xp', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: userProfile.id,
-            event: 'badge_check',
-          }),
-        })
-      }
-    } catch (err) {
-      console.error('Error adding to Word Wall:', err)
-    }
+  const tryMatch = (id: string) => {
+    if (!selected) { setSelected(id); return }
+    if (selected === id) { setMatched(m => new Set(m).add(id)); setXpEarned(p => p + 5); setFeedback('✅ Cocok! +5 XP'); }
+    else setFeedback('❌ Belum cocok, coba lagi.')
+    setSelected(null)
+    setTimeout(() => setFeedback(''), 1500)
   }
 
-  // Kirim Submission Worksheet
-  const handleWorksheetSubmit = async (e: React.FormEvent, worksheetId: string) => {
-    e.preventDefault()
-    if (!userProfile || !submitUrl || submittingFile) return
+  const isComplete = matched.size === pairs.length
+  return (
+    <div className="bg-white border border-rose-100 rounded-2xl p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-gray-800">🔤 Cocokkan kata dengan artinya</h3>
+        {xpEarned > 0 && <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">+{xpEarned} XP</span>}
+      </div>
+      {feedback && <p className="text-sm font-bold text-gray-700 bg-gray-50 px-3 py-2 rounded-xl">{feedback}</p>}
+      {isComplete ? (
+        <div className="text-center py-6"><p className="text-2xl font-black text-emerald-600">🎉 Semua Cocok!</p><p className="text-gray-500 text-sm mt-1">Kamu mendapat +{xpEarned} XP</p><Button className="mt-4" onClick={() => { setMatched(new Set()); setXpEarned(0) }}>Main Lagi</Button></div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            {pairs.map(w => <button key={w.id} disabled={matched.has(w.id)} onClick={() => setSelected(w.id)}
+              className={`w-full flex items-center gap-2 rounded-2xl border-2 px-3 py-3 text-left text-sm font-bold transition ${matched.has(w.id) ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : selected === w.id ? 'border-rose-400 bg-rose-50' : 'border-gray-200 hover:border-rose-200'}`}>
+              {w.emoji} {w.word} {matched.has(w.id) && '✅'}
+            </button>)}
+          </div>
+          <div className="space-y-2">
+            {shuffled.map(w => <button key={w.id} disabled={matched.has(w.id)} onClick={() => tryMatch(w.id)}
+              className={`w-full rounded-2xl border-2 px-3 py-3 text-left text-sm font-bold transition ${matched.has(w.id) ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-gray-200 hover:border-rose-300'}`}>
+              {w.meaning} {matched.has(w.id) && '✅'}
+            </button>)}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
-    try {
-      setSubmittingFile(true)
-      const payload = {
-        worksheet_id: worksheetId,
-        user_id: userProfile.id,
-        file_url: submitUrl,
-        submitted_at: new Date().toISOString(),
-      }
+// ─── Fill in Blank ────────────────────────────────────────────────────────────
+function FillInBlank({ words }: { words: VocabWord[] }) {
+  const items = useMemo(() => words.filter(w => w.example.toLowerCase().includes(w.word.toLowerCase())).slice(0, 8), [words])
+  const [i, setI] = useState(0)
+  const [val, setVal] = useState('')
+  const [status, setStatus] = useState<'idle' | 'correct' | 'wrong'>('idle')
 
-      // Check if already submitted (should upsert)
-      const existing = submissions.find(s => s.worksheet_id === worksheetId)
-      if (existing) {
-        const { error } = await (supabase
-          .from('worksheet_submissions') as any)
-          .update(payload)
-          .eq('id', existing.id)
+  if (items.length === 0) return <EmptyVocab message="Pastikan kolom 'Contoh Kalimat' guru mengandung kata kosakatanya." />
 
-        if (error) throw error
-        setSubmissions(prev => prev.map(s => s.id === existing.id ? { ...s, ...payload } : s))
-      } else {
-        const { data, error } = await (supabase
-          .from('worksheet_submissions') as any)
-          .insert(payload)
-          .select()
+  const item = items[i]
+  const sentence = item.example.replace(new RegExp(item.word, 'i'), '_____')
 
-        if (error) throw error
-        setSubmissions(prev => [...prev, data[0]])
-      }
-
-      setSubmitUrl('')
-      alert('Tugas Worksheet berhasil dikirim!')
-    } catch (err) {
-      console.error('Error submitting worksheet:', err)
-      alert('Gagal mengirim worksheet.')
-    } finally {
-      setSubmittingFile(false)
-    }
-  }
-
-  // Dapatkan content_html untuk level terpilih
-  const activeLevelContent = levels.find((l) => l.level === selectedLevel)?.content_html || ''
+  const check = () => { if (val.trim().toLowerCase() === item.word.toLowerCase()) setStatus('correct'); else setStatus('wrong') }
+  const next = () => { setI(n => (n + 1) % items.length); setVal(''); setStatus('idle') }
 
   return (
-    <div className="max-w-6xl mx-auto py-4 px-4 sm:px-6">
-      
-      {/* Module Title Card */}
-      <div className="bg-gradient-to-r from-rose-500 to-pink-500 rounded-3xl p-8 text-white shadow-md mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-4xl">{module.emoji || '👗'}</span>
-            <span className="text-xs font-extrabold uppercase tracking-widest bg-white/20 px-3 py-1 rounded-full">
-              Modul {module.number}
+    <div className="bg-white border border-rose-100 rounded-2xl p-6 space-y-4 max-w-xl mx-auto">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-gray-800">✏️ Lengkapi Kalimat</h3>
+        <span className="text-xs text-gray-400">{i + 1} / {items.length}</span>
+      </div>
+      <div className="bg-rose-50 rounded-2xl p-4 text-base font-semibold text-gray-800">{item.emoji} {sentence}</div>
+      <p className="text-sm text-gray-500">Petunjuk: artinya "<b>{item.meaning}</b>"</p>
+      <input value={val} onChange={e => { setVal(e.target.value); setStatus('idle') }}
+        onKeyDown={e => e.key === 'Enter' && status === 'idle' && check()}
+        placeholder="Ketik kata bahasa Inggris..."
+        className="w-full border-2 border-gray-200 focus:border-rose-400 rounded-2xl px-4 py-3 text-base focus:outline-none" />
+      {status === 'idle' && <Button className="w-full bg-rose-500 hover:bg-rose-600 text-white" onClick={check}>Periksa</Button>}
+      {status === 'correct' && <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-4"><p className="font-bold text-emerald-700">✅ Benar! Jawabannya "{item.word}"</p><Button className="mt-2 w-full" onClick={next}>Lanjut →</Button></div>}
+      {status === 'wrong' && <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4"><p className="font-bold text-amber-700">💡 Belum tepat. Jawaban: <b>{item.word}</b></p><Button className="mt-2 w-full" onClick={next}>Lanjut →</Button></div>}
+    </div>
+  )
+}
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
+function EmptyVocab({ message }: { message?: string }) {
+  return (
+    <div className="text-center py-16 text-gray-400">
+      <div className="text-5xl mb-3">📭</div>
+      <p className="font-medium text-gray-500">{message || 'Guru belum menambahkan kosakata untuk modul ini.'}</p>
+    </div>
+  )
+}
+
+// ─── Quiz Link Section ────────────────────────────────────────────────────────
+function QuizSection({ module }: { module: { id: string; title: string } }) {
+  return (
+    <div className="max-w-xl mx-auto text-center py-8 space-y-4">
+      <div className="text-5xl">❓</div>
+      <h3 className="text-xl font-bold text-gray-800">Kuis Modul</h3>
+      <p className="text-gray-500 text-sm">Uji pemahamanmu dari materi yang telah kamu pelajari.</p>
+      <Link href={`/modules/${module.id}/quiz`}>
+        <Button className="bg-rose-500 hover:bg-rose-600 text-white px-8 py-3 rounded-2xl font-bold text-base flex items-center gap-2 mx-auto">
+          Mulai Kuis <ArrowRight size={18} />
+        </Button>
+      </Link>
+    </div>
+  )
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function ModuleDetailClient({ module, levels, worksheets, resources, reviews }: ModuleDetailClientProps) {
+  const supabase = createClient()
+  const [activeTab, setActiveTab] = useState<ActivityTab>('flashcards')
+  const [studentLevel, setStudentLevel] = useState<'beginner' | 'intermediate'>('beginner')
+  const [vocabWords, setVocabWords] = useState<VocabWord[]>([])
+  const [loadingVocab, setLoadingVocab] = useState(true)
+  const [loadingProgress, setLoadingProgress] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const [{ data: student }, { data: vocab }] = await Promise.all([
+        supabase.from('students').select('level').eq('id', user.id).single() as any,
+        supabase.from('vocab_words').select('*').eq('module_id', module.id).order('order', { ascending: true }) as any,
+      ])
+      const level = student?.level || 'beginner'
+      setStudentLevel(level)
+      setVocabWords((vocab || []).filter((v: any) => v.level === level))
+      setLoadingVocab(false)
+    }
+    init()
+  }, [module.id])
+
+  const handleSaveWord = async (w: VocabWord) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await (supabase.from('word_wall') as any).upsert({ user_id: user.id, word: w.word, meaning: w.meaning, example: w.example, emoji: w.emoji }, { onConflict: 'user_id,word' })
+  }
+
+  const levelContent = levels.find(l => l.level === studentLevel)
+
+  const DEFAULT_VOCAB = [
+    { word: 'measurement', meaning: 'ukuran, pengukuran' },
+    { word: 'pattern', meaning: 'pola baju' },
+    { word: 'sewing machine', meaning: 'mesin jahit' },
+    { word: 'fabric', meaning: 'kain, bahan pakaian' },
+    { word: 'hemline', meaning: 'tepi bawah pakaian' },
+  ]
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Module Header */}
+      <div className="bg-white border border-rose-100 rounded-3xl p-6 shadow-sm">
+        <div className="flex items-start gap-4">
+          <span className="text-5xl shrink-0">{module.emoji || '📖'}</span>
+          <div className="flex-1 min-w-0">
+            <span className="text-xs font-bold text-rose-500 uppercase tracking-widest">Modul {module.number}</span>
+            <h1 className="text-2xl font-extrabold text-gray-800 mt-1">{module.title}</h1>
+            {module.tagline && <p className="text-gray-500 text-sm mt-1">{module.tagline}</p>}
+            <span className={`inline-block mt-2 text-xs font-bold px-2.5 py-1 rounded-full ${studentLevel === 'intermediate' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+              {studentLevel === 'intermediate' ? '🔵 Intermediate' : '🟢 Beginner'}
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight">
-            {module.title}
-          </h1>
-          <p className="text-white/85 text-sm md:text-base mt-2 max-w-xl font-medium leading-relaxed">
-            {module.tagline || 'Pelajari materi bahasa Inggris tata busana terlengkap.'}
-          </p>
-        </div>
-        
-        {/* Level Toggle Indicator */}
-        <div className="flex flex-col items-start md:items-end gap-1.5 shrink-0">
-          <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Level Kompetensimu</span>
-          <div className="bg-white/10 p-1.5 rounded-2xl flex gap-1 border border-white/15">
-            <button
-              onClick={() => setSelectedLevel('beginner')}
-              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer select-none
-                ${selectedLevel === 'beginner' 
-                  ? 'bg-white text-rose-600 shadow-sm' 
-                  : 'text-white hover:bg-white/5'
-                }`}
-            >
-              Beginner
-            </button>
-            <button
-              onClick={() => setSelectedLevel('intermediate')}
-              className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer select-none
-                ${selectedLevel === 'intermediate' 
-                  ? 'bg-white text-rose-600 shadow-sm' 
-                  : 'text-white hover:bg-white/5'
-                }`}
-            >
-              Intermediate
-            </button>
-          </div>
         </div>
       </div>
 
-      {/* Tabs Navigator */}
-      <div className="flex border-b border-rose-100 mb-8 overflow-x-auto gap-1">
-        {[
-          { id: 'content', label: 'Materi Pelajaran', icon: BookOpen },
-          { id: 'resources', label: 'Materi Pendukung', icon: FileCheck },
-          { id: 'worksheet', label: 'Lembar Kerja (Worksheet)', icon: FileText },
-          { id: 'reviews', label: 'Ulasan Modul', icon: MessageSquare },
-        ].map((tab) => {
-          const Icon = tab.icon
-          const isActive = activeTab === tab.id
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-5 py-3.5 border-b-2 font-bold text-sm whitespace-nowrap transition-all cursor-pointer select-none
-                ${isActive 
-                  ? 'border-rose-500 text-rose-600' 
-                  : 'border-transparent text-gray-500 hover:text-rose-500 hover:border-rose-200'
-                }`}
-            >
-              <Icon size={16} />
-              {tab.label}
-            </button>
-          )
-        })}
+      {/* Activity Tabs */}
+      <div className="flex gap-1 bg-white border border-rose-100 rounded-2xl p-1.5 shadow-sm overflow-x-auto scrollbar-none">
+        {ACTIVITY_TABS.map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${activeTab === t.key ? 'bg-rose-500 text-white shadow-sm' : 'text-gray-500 hover:text-rose-500 hover:bg-rose-50/40'}`}>
+            {t.icon} {t.label}
+          </button>
+        ))}
       </div>
 
-      {/* Tab Contents */}
-      <div className="animate-fade-in">
-        
-        {/* 1. Materi Pelajaran */}
-        {activeTab === 'content' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* HTML WYSIWYG Content Area */}
-            <div className="lg:col-span-2 bg-white border border-rose-100 rounded-3xl p-6 md:p-8 shadow-sm">
-              <h3 className="text-xl font-extrabold text-gray-800 border-b border-rose-50 pb-4 mb-6 flex items-center gap-2.5">
-                <BookOpen className="text-rose-500" />
-                Materi Level: <span className="capitalize text-rose-500">{selectedLevel}</span>
-              </h3>
-
-              {activeLevelContent ? (
-                <div 
-                  className="prose prose-rose max-w-none text-gray-700 leading-relaxed font-normal whitespace-pre-line"
-                  dangerouslySetInnerHTML={{ __html: activeLevelContent }}
-                />
-              ) : (
-                <div className="text-center py-16 text-gray-400 font-medium">
-                  Materi untuk level ini belum diisi oleh guru. Silakan cek level lainnya.
-                </div>
-              )}
-            </div>
-
-            {/* Sidebar Widgets: Vocab Word Wall & Quiz CTA */}
-            <div className="lg:col-span-1 flex flex-col gap-6">
-              
-              {/* Quiz CTA Card */}
-              <div className="bg-rose-50/30 border border-rose-100 rounded-3xl p-6 shadow-sm flex flex-col justify-between h-[200px]">
-                <div>
-                  <h4 className="font-extrabold text-gray-800 text-base mb-1.5 flex items-center gap-2">
-                    <HelpCircle size={18} className="text-rose-500" />
-                    Kuis Modul
-                  </h4>
-                  <p className="text-xs text-gray-500 leading-relaxed font-medium">
-                    Uji pemahamanmu setelah membaca materi untuk mendapatkan XP tambahan dan badge menarik!
-                  </p>
-                </div>
-                <Link href={`/modules/${module.id}/quiz`}>
-                  <Button className="w-full py-4.5 rounded-xl font-bold bg-rose-500 hover:bg-rose-600 text-white text-xs shadow-sm flex items-center justify-center gap-1.5">
-                    Mulai Kuis Modul
-                    <ArrowRight size={14} />
-                  </Button>
-                </Link>
-              </div>
-
-              {/* Vocab Word Wall Card */}
-              <div className="bg-white border border-rose-100 rounded-3xl p-6 shadow-sm">
-                <h4 className="font-extrabold text-gray-800 text-base mb-3.5 flex items-center gap-2">
-                  <Plus size={18} className="text-rose-500" />
-                  Kosakata Utama
-                </h4>
-                <p className="text-xs text-gray-400 leading-relaxed font-semibold mb-4">
-                  Klik tombol <Plus size={12} className="inline" /> untuk menambahkan kosakata penting modul ini ke Word Wall privatmu.
-                </p>
-
-                <div className="flex flex-col gap-3">
-                  {DEFAULT_VOCAB.map((vocab) => {
-                    const isAdded = addedVocab.includes(vocab.word)
-                    return (
-                      <div 
-                        key={vocab.word} 
-                        className="flex justify-between items-center p-3 rounded-xl border border-rose-50 hover:bg-rose-50/20 transition-all"
-                      >
-                        <div className="text-left">
-                          <p className="text-sm font-bold text-gray-800">{vocab.word}</p>
-                          <p className="text-xs text-gray-400 font-semibold">{vocab.meaning}</p>
-                        </div>
-                        <button
-                          onClick={() => handleAddToWordWall(vocab.word, vocab.meaning)}
-                          disabled={isAdded}
-                          className={`p-2 rounded-lg border transition-all cursor-pointer select-none
-                            ${isAdded 
-                              ? 'bg-emerald-50 border-emerald-200 text-emerald-600' 
-                              : 'bg-rose-50/30 border-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white'
-                            }`}
-                        >
-                          {isAdded ? <Check size={14} /> : <Plus size={14} />}
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-            </div>
+      {/* Activity Content */}
+      <div className="min-h-[400px]">
+        {loadingVocab && activeTab !== 'reading' && activeTab !== 'review' ? (
+          <div className="flex items-center justify-center h-40 gap-3">
+            <div className="w-8 h-8 border-4 border-rose-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-gray-400 text-sm">Memuat kosakata...</p>
           </div>
-        )}
+        ) : (
+          <>
+            {activeTab === 'flashcards' && <Flashcards words={vocabWords} onSaveWord={handleSaveWord} />}
+            {activeTab === 'dictionary' && <VisualDictionary words={vocabWords} />}
+            {activeTab === 'matching' && <WordMatching words={vocabWords} />}
+            {activeTab === 'fillblank' && <FillInBlank words={vocabWords} />}
+            {activeTab === 'quiz' && <QuizSection module={module} />}
 
-        {/* 2. Materi Pendukung (Free Resources) */}
-        {activeTab === 'resources' && (
-          <div className="bg-white border border-rose-100 rounded-3xl p-6 md:p-8 shadow-sm">
-            <h3 className="text-xl font-extrabold text-gray-800 border-b border-rose-50 pb-4 mb-6 flex items-center gap-2.5">
-              <FileCheck className="text-rose-500" />
-              Materi Pendukung (Free Resources)
-            </h3>
-            <ResourcePlayer resources={resources} />
-          </div>
-        )}
-
-        {/* 3. Lembar Kerja (Worksheet) */}
-        {activeTab === 'worksheet' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* List Worksheets */}
-            <div className="lg:col-span-2 flex flex-col gap-6">
-              {worksheets.length === 0 ? (
-                <div className="text-center py-16 bg-white rounded-3xl border border-gray-100 text-sm text-gray-500 font-medium">
-                  Belum ada Lembar Kerja (Worksheet) untuk modul ini.
-                </div>
-              ) : (
-                worksheets.map((worksheet) => {
-                  const submission = submissions.find(s => s.worksheet_id === worksheet.id)
-                  
-                  return (
-                    <div 
-                      key={worksheet.id}
-                      className="bg-white border border-rose-100 rounded-3xl p-6 shadow-sm flex flex-col gap-5"
-                    >
-                      {/* Title & Format */}
-                      <div className="flex justify-between items-start pb-4 border-b border-rose-50/50">
-                        <div>
-                          <span className="text-xs font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                            {worksheet.format || 'PDF'}
-                          </span>
-                          <h4 className="font-extrabold text-gray-800 text-base md:text-lg mt-1.5 leading-snug">
-                            {worksheet.title}
-                          </h4>
+            {activeTab === 'reading' && (
+              <div className="space-y-6">
+                {levelContent?.content_html ? (
+                  <div className="bg-white border border-rose-100 rounded-3xl p-6 shadow-sm prose prose-rose max-w-none"
+                    dangerouslySetInnerHTML={{ __html: levelContent.content_html }} />
+                ) : (
+                  <div className="text-center py-16 text-gray-400"><div className="text-5xl mb-3">📄</div><p>Materi bacaan belum tersedia.</p></div>
+                )}
+                {resources.length > 0 && <ResourcePlayer resources={resources} />}
+                {worksheets.length > 0 && (
+                  <div className="bg-white border border-rose-100 rounded-3xl p-6 shadow-sm space-y-4">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2"><FileCheck size={18} className="text-rose-500" /> Worksheet</h3>
+                    <div className="space-y-2">
+                      {worksheets.map(ws => (
+                        <div key={ws.id} className="flex items-center justify-between p-3 bg-rose-50/30 rounded-xl border border-rose-100/50">
+                          <span className="text-sm font-medium text-gray-700">{ws.title}</span>
+                          {ws.file_url && <a href={ws.file_url} target="_blank" rel="noopener noreferrer"><Button variant="outline" className="h-8 text-xs"><Download size={12} className="mr-1" /> Unduh</Button></a>}
                         </div>
-
-                        {/* Download link */}
-                        {worksheet.file_url && (
-                          <a 
-                            href={worksheet.file_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="p-2 bg-gray-50 border border-gray-200 text-gray-500 rounded-xl hover:bg-gray-100 transition-colors flex items-center gap-1.5 text-xs font-bold"
-                          >
-                            <Download size={14} />
-                            Unduh Soal
-                          </a>
-                        )}
-                      </div>
-
-                      {/* Submission state */}
-                      {submission ? (
-                        <div className="bg-gray-50/50 border border-gray-100 rounded-2xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                          <div>
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Status Tugas</p>
-                            <p className="text-sm font-bold text-gray-700 flex items-center gap-1.5 mt-1">
-                              <Check size={16} className="text-emerald-500" />
-                              Terkirim ({new Date(submission.submitted_at).toLocaleDateString('id-ID')})
-                            </p>
-                            
-                            {submission.teacher_note && (
-                              <div className="mt-3 text-xs text-gray-600 bg-white border border-gray-100 rounded-xl p-3 max-w-md">
-                                <span className="font-bold text-rose-500">Catatan Guru:</span> {submission.teacher_note}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Grade display */}
-                          <div className="bg-white border border-gray-100 rounded-2xl p-4 flex flex-col items-center justify-center shrink-0 min-w-[100px] shadow-sm">
-                            <span className="text-xs font-bold text-gray-400 uppercase">Nilai</span>
-                            <span className="text-2xl font-black text-rose-500 mt-1">
-                              {submission.grade !== null ? submission.grade : '...'}
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-rose-50/20 border border-rose-100/50 rounded-2xl p-5 text-sm text-rose-800 font-medium">
-                          Kamu belum mengirimkan jawaban untuk tugas ini.
-                        </div>
-                      )}
-
-                      {/* Submission Upload Form */}
-                      <form 
-                        onSubmit={(e) => handleWorksheetSubmit(e, worksheet.id)}
-                        className="flex flex-col gap-3 pt-2"
-                      >
-                        <label className="text-xs font-bold text-gray-500 uppercase">
-                          Kirim Jawaban (Tautan / URL File)
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="url"
-                            value={submitUrl}
-                            onChange={(e) => setSubmitUrl(e.target.value)}
-                            placeholder="https://drive.google.com/file/... atau tautan file tugasmu"
-                            className="flex-1 p-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-normal"
-                            required
-                          />
-                          <Button
-                            type="submit"
-                            disabled={submittingFile}
-                            className="px-5 rounded-xl font-bold bg-rose-500 hover:bg-rose-600 text-white text-xs shrink-0 flex items-center gap-1.5"
-                          >
-                            <Upload size={14} />
-                            {submittingFile ? 'Mengirim...' : 'Kirim'}
-                          </Button>
-                        </div>
-                      </form>
-
+                      ))}
                     </div>
-                  )
-                })
-              )}
-            </div>
-
-            {/* Sidebar Guide */}
-            <div className="lg:col-span-1">
-              <div className="bg-white border border-rose-100 rounded-3xl p-6 shadow-sm text-sm text-gray-600 flex flex-col gap-3">
-                <h4 className="font-extrabold text-gray-800 text-base mb-1 flex items-center gap-2">
-                  <FileText size={18} className="text-rose-500" />
-                  Panduan Lembar Kerja
-                </h4>
-                <ul className="list-disc pl-5 flex flex-col gap-2 font-medium leading-relaxed">
-                  <li>Unduh file lembar kerja menggunakan tombol yang disediakan.</li>
-                  <li>Kerjakan tugas sesuai instruksi guru di dalam dokumen tersebut.</li>
-                  <li>Unggah hasil tugasmu ke Google Drive/OneDrive, pastikan akses file diubah menjadi <strong>Siapa saja yang memiliki link (Anyone with link)</strong>.</li>
-                  <li>Masukkan tautan file tugasmu pada kolom yang disediakan lalu klik <strong>Kirim</strong>.</li>
-                  <li>Guru akan memberikan nilai dan umpan balik yang dapat kamu lihat di halaman ini.</li>
-                </ul>
+                  </div>
+                )}
+                {/* Default vocab table */}
+                <div className="bg-white border border-rose-100 rounded-3xl p-6 shadow-sm">
+                  <h3 className="font-bold text-gray-800 mb-4">📝 Kosakata Kunci</h3>
+                  <div className="space-y-2">
+                    {(vocabWords.length > 0 ? vocabWords : DEFAULT_VOCAB as any[]).map((v: any, idx: number) => (
+                      <div key={v.id || idx} className="flex items-center gap-3 p-3 bg-rose-50/30 rounded-xl">
+                        {v.emoji && <span className="text-xl">{v.emoji}</span>}
+                        <span className="font-semibold text-gray-800 text-sm">{v.word}</span>
+                        <span className="text-gray-400 text-xs">—</span>
+                        <span className="text-rose-600 text-sm">{v.meaning}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* 4. Ulasan Modul */}
-        {activeTab === 'reviews' && (
-          <div className="bg-white border border-rose-100 rounded-3xl p-6 md:p-8 shadow-sm">
-            <ReviewSection moduleId={module.id} initialReviews={reviews} />
-          </div>
+            {activeTab === 'review' && <ReviewSection moduleId={module.id} initialReviews={reviews} />}
+          </>
         )}
-
       </div>
     </div>
   )
