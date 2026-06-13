@@ -9,8 +9,8 @@ import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
+import NotificationBell from '@/components/shared/NotificationBell'
 import { 
-  Bell, 
   Menu, 
   User as UserIcon, 
   LogOut, 
@@ -33,11 +33,9 @@ interface TopBarProps {
 export function TopBar({ studentData, loading }: TopBarProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { signOut } = useAuth()
+  const { signOut, user } = useAuth()
   const supabase = createClient()
 
-  const [notifications, setNotifications] = useState<any[]>([])
-  const [showNotifDropdown, setShowNotifDropdown] = useState(false)
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
@@ -57,51 +55,6 @@ export function TopBar({ studentData, loading }: TopBarProps) {
     if (pathname.startsWith('/help')) return 'Pusat Bantuan'
     return 'SALL Platform'
   }
-
-  // Fetch notifications
-  useEffect(() => {
-    if (!studentData) return
-
-    const fetchNotifications = async () => {
-      const { data } = await (supabase as any)
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5)
-      if (data) setNotifications(data)
-    }
-
-    fetchNotifications()
-
-    // Realtime notifications subscription
-    const channel = supabase
-      .channel('notifications-changes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, 
-        payload => {
-          setNotifications(prev => [payload.new, ...prev.slice(0, 4)])
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [studentData, supabase])
-
-  const markAllAsRead = async () => {
-    if (!studentData) return
-    const unreadIds = notifications.filter(n => !n.read).map(n => n.id)
-    if (unreadIds.length === 0) return
-
-    await (supabase as any)
-      .from('notifications')
-      .update({ read: true })
-      .in('id', unreadIds)
-
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-  }
-
-  const unreadCount = notifications.filter(n => !n.read).length
 
   // Tutup drawer saat pathname ganti
   useEffect(() => {
@@ -132,51 +85,7 @@ export function TopBar({ studentData, loading }: TopBarProps) {
 
       <div className="flex items-center gap-4">
         {/* Notification Bell */}
-        <div className="relative">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-gray-500 hover:text-rose-500 relative min-h-[44px] min-w-[44px]"
-            onClick={() => {
-              setShowNotifDropdown(!showNotifDropdown)
-              setShowProfileDropdown(false)
-              if (!showNotifDropdown) markAllAsRead()
-            }}
-          >
-            <Bell size={20} />
-            {unreadCount > 0 && (
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white animate-pulse" />
-            )}
-          </Button>
-
-          {showNotifDropdown && (
-            <div className="absolute right-0 mt-2 w-80 bg-white border border-rose-50 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="px-4 py-2 border-b border-rose-50 flex items-center justify-between">
-                <span className="font-semibold text-xs text-gray-700">Notifikasi</span>
-                {unreadCount > 0 && (
-                  <span className="text-[10px] bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full font-bold">
-                    {unreadCount} baru
-                  </span>
-                )}
-              </div>
-              <div className="max-h-64 overflow-y-auto">
-                {notifications.length === 0 ? (
-                  <p className="text-center text-xs text-gray-400 py-6">Tidak ada notifikasi baru</p>
-                ) : (
-                  notifications.map(n => (
-                    <div 
-                      key={n.id} 
-                      className={`px-4 py-3 border-b border-rose-50/50 hover:bg-rose-50/20 transition-colors ${!n.read ? 'bg-rose-50/30' : ''}`}
-                    >
-                      <h4 className="text-xs font-semibold text-gray-800">{n.title}</h4>
-                      <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{n.body}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+        <NotificationBell userId={user?.id || null} />
 
         <Separator orientation="vertical" className="h-6 bg-rose-150 hidden md:block" />
 
@@ -185,7 +94,6 @@ export function TopBar({ studentData, loading }: TopBarProps) {
           <button
             onClick={() => {
               setShowProfileDropdown(!showProfileDropdown)
-              setShowNotifDropdown(false)
             }}
             className="flex items-center gap-2 hover:bg-rose-50/50 p-1.5 rounded-xl transition-all duration-200 cursor-pointer min-h-[44px]"
           >

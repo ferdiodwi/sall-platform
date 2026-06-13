@@ -16,6 +16,7 @@ import {
   Star,
   Trophy
 } from 'lucide-react'
+import FeedbackRecommendationCard from '@/components/shared/FeedbackRecommendationCard'
 
 // Helper to get current ISO Week (Format: YYYY-Www)
 function getCurrentISOWeek(): string {
@@ -211,60 +212,8 @@ export default async function StudentHomePage() {
             </CardContent>
           </Card>
 
-          {/* SECTION 3: REKOMENDASI AI / SMART ENGINE */}
-          <Card className="border-rose-100 bg-white/50 backdrop-blur-sm shadow-sm rounded-2xl">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                <Lightbulb size={20} className="text-rose-500 animate-pulse" />
-                <span>Rekomendasi Belajar</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {latestFeedback ? (
-                <div className="space-y-4">
-                  <div className="bg-rose-50/50 border border-rose-100/50 rounded-2xl p-4 flex gap-4">
-                    <div className="text-3xl shrink-0">💡</div>
-                    <div className="space-y-1">
-                      <h4 className="text-xs font-bold text-rose-700 uppercase tracking-wide">
-                        Fokus Utama: {latestFeedback.weak_topic}
-                      </h4>
-                      <p className="text-sm text-gray-600 leading-relaxed">
-                        {latestFeedback.message}
-                      </p>
-                    </div>
-                  </div>
-
-                  {latestFeedback.recommended_activity && (
-                    <div className="flex justify-between items-center bg-white border border-rose-50/50 rounded-xl p-3 shadow-sm">
-                      <div className="text-xs font-medium text-gray-600">
-                        Aktivitas: <span className="font-semibold text-gray-800">{latestFeedback.recommended_activity}</span>
-                        {latestFeedback.est_time_minutes && (
-                          <span className="text-rose-500 ml-2">({latestFeedback.est_time_minutes} menit)</span>
-                        )}
-                      </div>
-                      <Link href="/modules">
-                        <Button size="sm" variant="ghost" className="text-rose-500 hover:bg-rose-50 text-xs font-semibold">
-                          <span>Mulai</span>
-                          <ArrowRight size={12} className="ml-1" />
-                        </Button>
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-6 space-y-2">
-                  <p className="text-sm text-gray-500">
-                    Selesaikan kuis pertamamu agar sistem dapat merekomendasikan bahan belajar terbaik!
-                  </p>
-                  <Link href="/placement-quiz">
-                    <Button size="sm" className="bg-rose-500 hover:bg-rose-600 text-white border-0 rounded-xl mt-1.5 cursor-pointer">
-                      Mulai Placement Quiz
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* SECTION 3: REKOMENDASI BELAJAR */}
+          <FeedbackRecommendationCard initialData={latestFeedback} />
         </div>
 
         {/* SECTION 5: LEADERBOARD PREVIEW */}
