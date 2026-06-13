@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createMiddlewareClient } from '@/lib/supabase/middleware'
 
-export async function proxy(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   const { supabase, supabaseResponse } = createMiddlewareClient(request)
   const { pathname } = request.nextUrl
 
