@@ -72,22 +72,20 @@ export default function TeacherWorksheetsPage() {
     try {
       setLoading(true)
 
-      // 1. Fetch modules
-      const { data: modulesData, error: mErr } = await supabase
-        .from('modules')
-        .select('id, number, title')
-        .order('order', { ascending: true }) as any
+      // Parallelkan fetch modules + worksheets
+      const [
+        { data: modulesData, error: mErr },
+        { data: worksheetsData, error: wErr },
+      ] = await Promise.all([
+        supabase.from('modules').select('id, number, title').order('order', { ascending: true }) as any,
+        supabase.from('worksheets').select('*') as any,
+      ])
 
       if (mErr) throw mErr
       setModules(modulesData || [])
       if (modulesData && modulesData.length > 0) {
         setUploadModuleId(modulesData[0].id)
       }
-
-      // 2. Fetch worksheets
-      const { data: worksheetsData, error: wErr } = await supabase
-        .from('worksheets')
-        .select('*') as any
 
       if (wErr) throw wErr
 

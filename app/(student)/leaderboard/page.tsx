@@ -27,17 +27,17 @@ export default function LeaderboardPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1. Get logged in user
-        const { data: { user } } = await supabase.auth.getUser()
-        setCurrentUser(user)
+        // Parallelkan fetch user + leaderboard
+        const [{ data: { session } }, { data, error }] = await Promise.all([
+          supabase.auth.getSession(),
+          supabase.from('leaderboards')
+            .select('id, user_id, xp, week_id, users(name, photo_url)')
+            .eq('week_id', weekId)
+            .order('xp', { ascending: false })
+            .limit(20) as any,
+        ])
 
-        // 2. Fetch top 20 leaderboard entries
-        const { data, error } = await supabase
-          .from('leaderboards')
-          .select('id, user_id, xp, week_id, users(name, photo_url)')
-          .eq('week_id', weekId)
-          .order('xp', { ascending: false })
-          .limit(20) as any
+        setCurrentUser(session?.user ?? null)
 
         if (error) throw error
         if (data) {

@@ -69,34 +69,26 @@ export default function ModuleQuizPage() {
     const fetchQuizData = async () => {
       try {
         setLoading(true)
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) {
           router.push('/login')
           return
         }
 
-        // Ambil level siswa
-        const { data: student } = await supabase
-          .from('students')
-          .select('level')
-          .eq('id', user.id)
-          .single() as any
+        // Parallelkan fetch student level + quiz data
+        const [{ data: student }, { data: quizData, error: quizErr }] = await Promise.all([
+          supabase.from('students').select('level').eq('id', session.user.id).single() as any,
+          supabase.from('quizzes').select('*').eq('module_id', moduleId).single() as any,
+        ])
 
         const level = student?.level || 'beginner'
-
-        // Ambil quiz terkait modul ini
-        const { data: quizData, error: quizErr } = await supabase
-          .from('quizzes')
-          .select('*')
-          .eq('module_id', moduleId)
-          .single() as any
 
         if (quizErr || !quizData) {
           throw new Error('Kuis untuk modul ini tidak ditemukan.')
         }
         setQuiz(quizData)
 
-        // Ambil questions tanpa kunci jawaban (anti-cheat)
+        // Fetch questions (depends on quizData.id)
         const { data: questionsData, error: questionsErr } = await supabase
           .from('questions')
           .select('id, quiz_id, type, prompt, passage, options, topic, order')

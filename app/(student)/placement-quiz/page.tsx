@@ -57,18 +57,17 @@ export default function PlacementQuizPage() {
     const checkEligibility = async () => {
       try {
         setCheckingEligibility(true)
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) {
           router.push('/login')
           return
         }
 
-        // Fetch data profil student
-        const { data: student, error: studentErr } = await supabase
-          .from('students')
-          .select('level, placement_date')
-          .eq('id', user.id)
-          .single() as any
+        // Parallelkan fetch student + quiz data
+        const [{ data: student, error: studentErr }, { data: quizData, error: quizErr }] = await Promise.all([
+          supabase.from('students').select('level, placement_date').eq('id', session.user.id).single() as any,
+          supabase.from('quizzes').select('id').eq('level', 'placement').single() as any,
+        ])
 
         if (studentErr) throw studentErr
 
@@ -76,7 +75,6 @@ export default function PlacementQuizPage() {
           const lastDate = new Date(student.placement_date)
           const daysSinceLast = (Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24)
           if (daysSinceLast < 30) {
-            // Belum boleh mengulang
             setIsEligible(false)
             const nextDate = new Date(lastDate.getTime() + 30 * 24 * 60 * 60 * 1000)
             setNextAvailableDate(nextDate.toLocaleDateString('id-ID', {
@@ -91,15 +89,7 @@ export default function PlacementQuizPage() {
           }
         }
 
-        // Siswa eligible untuk mengambil kuis
         setIsEligible(true)
-        
-        // Ambil placement quiz ID
-        const { data: quizData, error: quizErr } = await supabase
-          .from('quizzes')
-          .select('id')
-          .eq('level', 'placement')
-          .single() as any
 
         if (quizErr || !quizData) {
           throw new Error('Placement quiz tidak ditemukan di database.')
@@ -107,7 +97,7 @@ export default function PlacementQuizPage() {
 
         setQuizId(quizData.id)
 
-        // Ambil 10 pertanyaan tanpa kunci jawaban (anti-cheat)
+        // Fetch questions (depends on quizData.id)
         const { data: questionsData, error: questionsErr } = await supabase
           .from('questions')
           .select('id, quiz_id, type, prompt, passage, options, topic, order')

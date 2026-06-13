@@ -57,23 +57,19 @@ export default function TeacherReviewsPage() {
     try {
       setLoading(true)
 
-      // 1. Fetch modules
-      const { data: modulesData } = await supabase
-        .from('modules')
-        .select('id, number, title') as any
+      // Parallelkan fetch modules + reviews
+      const [{ data: modulesData }, { data: reviewsData, error: rErr }] = await Promise.all([
+        supabase.from('modules').select('id, number, title') as any,
+        supabase.from('reviews').select('*').order('created_at', { ascending: false }) as any,
+      ])
+
       const mods = modulesData || []
       setModules(mods)
-
-      // 2. Fetch reviews
-      const { data: reviewsData, error: rErr } = await supabase
-        .from('reviews')
-        .select('*')
-        .order('created_at', { ascending: false }) as any
 
       if (rErr) throw rErr
       const rawReviews = reviewsData || []
 
-      // 3. Fetch student names
+      // Fetch student names (depends on review author IDs)
       const authorIds = rawReviews.map((r: any) => r.author_id)
       let studentsList: any[] = []
       if (authorIds.length > 0) {

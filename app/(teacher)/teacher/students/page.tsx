@@ -61,18 +61,16 @@ export default function TeacherStudentsPage() {
     try {
       setLoading(true)
 
-      // Fetch all students and join with users to get name/email/class
-      const { data: usersData, error: uErr } = await supabase
-        .from('users')
-        .select('*')
-        .eq('role', 'student') as any
+      // Parallelkan fetch users + students
+      const [
+        { data: usersData, error: uErr },
+        { data: studentsData, error: sErr },
+      ] = await Promise.all([
+        supabase.from('users').select('*').eq('role', 'student') as any,
+        supabase.from('students').select('*') as any,
+      ])
 
       if (uErr) throw uErr
-
-      const { data: studentsData, error: sErr } = await supabase
-        .from('students')
-        .select('*') as any
-
       if (sErr) throw sErr
 
       const rawUsers = usersData || []

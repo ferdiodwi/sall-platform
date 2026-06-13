@@ -12,7 +12,7 @@ export default async function ModuleDetailPage({ params }: ModuleDetailPageProps
   const { id } = await params
   const supabase = await createServerClient()
 
-  // 1. Ambil data modul
+  // Fetch modul dulu untuk cek eksistensi
   const { data: moduleData } = (await supabase
     .from('modules')
     .select('*')
@@ -23,42 +23,16 @@ export default async function ModuleDetailPage({ params }: ModuleDetailPageProps
     notFound()
   }
 
-  // 2. Ambil data konten level (beginner & intermediate)
-  const { data: levels } = (await supabase
-    .from('levels')
-    .select('level, content_html')
-    .eq('module_id', id)) as any
-
-  // 3. Ambil worksheets
-  const { data: worksheets } = (await supabase
-    .from('worksheets')
-    .select('*')
-    .eq('module_id', id)) as any
-
-  // 4. Ambil resources
-  const { data: resources } = (await supabase
-    .from('resources')
-    .select('*')
-    .eq('module_id', id)) as any
-
-  // 5. Ambil reviews joined with users to get reviewer name
-  const { data: reviews } = (await supabase
-    .from('reviews')
-    .select(`
-      id,
-      module_id,
-      author_id,
-      rating,
-      comment,
-      emoji,
-      pinned,
-      teacher_reply,
-      created_at,
-      users:author_id (
-        name
-      )
-    `)
-    .eq('module_id', id)) as any
+  // Fetch sisanya secara PARALEL
+  const [{ data: levels }, { data: worksheets }, { data: resources }, { data: reviews }] = await Promise.all([
+    supabase.from('levels').select('level, content_html').eq('module_id', id) as any,
+    supabase.from('worksheets').select('*').eq('module_id', id) as any,
+    supabase.from('resources').select('*').eq('module_id', id) as any,
+    supabase.from('reviews').select(`
+      id, module_id, author_id, rating, comment, emoji, pinned, teacher_reply, created_at,
+      users:author_id ( name )
+    `).eq('module_id', id) as any,
+  ])
 
   const formattedReviews = reviews?.map((r: any) => ({
     ...r,

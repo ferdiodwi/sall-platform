@@ -43,35 +43,24 @@ export default function TeacherModulesPage() {
     try {
       setLoading(true)
 
-      // Fetch all modules
-      const { data: modulesData, error: mErr } = await supabase
-        .from('modules')
-        .select('*')
-        .order('order', { ascending: true }) as any
+      // Jalankan SEMUA query paralel
+      const [
+        { data: modulesData, error: mErr },
+        { data: studentsData },
+        { data: feedbackData },
+        { data: quizzesData },
+        { data: questionsData },
+      ] = await Promise.all([
+        supabase.from('modules').select('*').order('order', { ascending: true }) as any,
+        supabase.from('students').select('modules_completed') as any,
+        supabase.from('feedback').select('correct, question_id') as any,
+        supabase.from('quizzes').select('id, module_id') as any,
+        supabase.from('questions').select('id, quiz_id') as any,
+      ])
 
       if (mErr) throw mErr
       const rawModules = (modulesData || []) as any[]
-
-      // Fetch students for calculating completion counts
-      const { data: studentsData } = await supabase
-        .from('students')
-        .select('modules_completed') as any
-
       const students = (studentsData || []) as any[]
-
-      // Fetch feedback & quizzes to calculate average quiz score
-      const { data: feedbackData } = await supabase
-        .from('feedback')
-        .select('correct, question_id') as any
-
-      const { data: quizzesData } = await supabase
-        .from('quizzes')
-        .select('id, module_id') as any
-
-      const { data: questionsData } = await supabase
-        .from('questions')
-        .select('id, quiz_id') as any
-
       const feedbackLogs = (feedbackData || []) as any[]
       const quizList = (quizzesData || []) as any[]
       const questionList = (questionsData || []) as any[]
